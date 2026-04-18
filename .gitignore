@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.env
+.venv
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Modelos entrenados (pueden ser grandes)
+models/*.pkl
+
+# Datos procesados (se regeneran)
+data/processed/*.csv
+
+# Resultados
+results/*.csv
+results/*.txt
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store
+
+# Logs
+*.log

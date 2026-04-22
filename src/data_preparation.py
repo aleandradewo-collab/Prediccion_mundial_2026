@@ -15,17 +15,19 @@ from pathlib import Path
 import logging
 
 from src.utils import DATA_RAW, DATA_PROCESSED, normalize_team_name, HOST_NATIONS, logger
+from src.dixon_coles import compute_attack_defense_ratings
 
 
 # ── Parámetros configurables ──────────────────────────────────────────────────
 RECENT_MATCHES_WINDOW = 10       # Partidos recientes para calcular forma
-MIN_DATE_TRAINING = "2010-01-01" # Solo entrenar con partidos modernos
+MIN_DATE_TRAINING = "2006-01-01" # Solo entrenar con partidos modernos
 IMPORTANT_TOURNAMENTS = {        # Peso extra para partidos de mayor importancia
     "FIFA World Cup": 3.0,
-    "Copa América": 2.5,
-    "UEFA Euro": 2.5,
-    "AFC Asian Cup": 2.0,
-    "Africa Cup of Nations": 2.0,
+    "Copa América": 2.4,
+    "UEFA Euro": 2.6,
+    "AFC Asian Cup": 1.8,
+    "Africa Cup of Nations": 2.1,
+    "Gold Cup":              1.8,
     "FIFA World Cup qualification": 1.5,
     "Friendly": 1.0,
 }
@@ -193,6 +195,7 @@ def compute_h2h(results: pd.DataFrame, team_a: str, team_b: str, n: int = 10) ->
 def build_match_features(
     results: pd.DataFrame,
     team_stats: pd.DataFrame,
+    ratings: pd.DataFrame = None,
     min_date: str = MIN_DATE_TRAINING
 ) -> pd.DataFrame:
     """
@@ -206,6 +209,48 @@ def build_match_features(
 
     df = results[results["date"] >= min_date].copy()
     df = df.sort_values("date").reset_index(drop=True)
+
+    # Cargar ranking FIFA para filtrar rivales débiles,
+    # igual que hace Dixon-Coles, para que el modelo no aprenda
+    # de partidos como México 8-0 Belice
+    ranking_files = sorted(DATA_RAW.glob("fifa_ranking*.csv"))
+    all_rankings = []
+    for rf in ranking_files:
+        tmp = pd.read_csv(rf)
+        if "country_full" in tmp.columns:
+            tmp = tmp.rename(columns={"country_full": "team", "total_points": "points"})
+        if "rank_date" not in tmp.columns:
+            date_str = rf.stem.replace("fifa_ranking_","").replace("fifa_ranking-","")
+            try:    tmp["rank_date"] = pd.to_datetime(date_str)
+            except: tmp["rank_date"] = pd.Timestamp("2022-10-06")
+        else:
+            tmp["rank_date"] = pd.to_datetime(tmp["rank_date"])
+        tmp["rank"] = pd.to_numeric(tmp["rank"], errors="coerce")
+        all_rankings.append(tmp[["team","rank","rank_date"]])
+
+    latest_ranks = (pd.concat(all_rankings, ignore_index=True)
+                      .sort_values("rank_date", ascending=False)
+                      .drop_duplicates(subset=["team"])
+                      .set_index("team")["rank"])
+
+    MAX_RIVAL_RANK_TRAINING = 100
+    EXCLUDE_TOURNAMENTS_TRAINING = {
+        "COSAFA Cup", "CECAFA Cup", "CAFA Nations Cup",
+        "MSG Prime Minister's Cup", "Pacific Games",
+        "Island Games", "CONIFA World Football Cup",
+        "CONIFA European Football Cup", "Inter Games",
+        "Muratti Vase", "Indian Ocean Island Games",
+    }
+
+    before = len(df)
+    df = df[~df["tournament"].isin(EXCLUDE_TOURNAMENTS_TRAINING)]
+    df = df[
+        df["home_team"].map(lambda t: latest_ranks.get(t, 999)) <= MAX_RIVAL_RANK_TRAINING
+    ]
+    df = df[
+        df["away_team"].map(lambda t: latest_ranks.get(t, 999)) <= MAX_RIVAL_RANK_TRAINING
+    ].reset_index(drop=True)
+    logger.info(f"  Partidos tras filtro de calidad: {len(df):,} (excluidos {before-len(df):,})")
 
     feature_rows = []
 
@@ -263,10 +308,46 @@ def build_match_features(
 
             # Peso del partido
             "tournament_weight": tournament_weight,
+
+            # Dixon-Coles ratings (se rellenan con 1.0 si no hay ratings)
+            "attack_rating_home":  1.0,
+            "attack_rating_away":  1.0,
+            "defense_rating_home": 1.0,
+            "defense_rating_away":  1.0,
         })
 
     feature_df = pd.DataFrame(feature_rows)
-    logger.info(f"Dataset de entrenamiento: {len(feature_df):,} partidos")
+    # Añadir ratings de ataque/defensa si están disponibles
+    if ratings is not None:
+        ratings_slim = ratings[["team", "attack_rating", "defense_rating"]].copy()
+
+        # Merge para equipo local
+        feature_df = feature_df.merge(
+            ratings_slim.rename(columns={
+                "team": "home_team",
+                "attack_rating":  "attack_rating_home_dc",
+                "defense_rating": "defense_rating_home_dc",
+            }),
+            on="home_team", how="left"
+        )
+        feature_df["attack_rating_home"]  = feature_df["attack_rating_home_dc"].fillna(1.0)
+        feature_df["defense_rating_home"] = feature_df["defense_rating_home_dc"].fillna(1.0)
+        feature_df.drop(columns=["attack_rating_home_dc", "defense_rating_home_dc"], inplace=True)
+
+        # Merge para equipo visitante
+        feature_df = feature_df.merge(
+            ratings_slim.rename(columns={
+                "team": "away_team",
+                "attack_rating":  "attack_rating_away_dc",
+                "defense_rating": "defense_rating_away_dc",
+            }),
+            on="away_team", how="left"
+        )
+        feature_df["attack_rating_away"]  = feature_df["attack_rating_away_dc"].fillna(1.0)
+        feature_df["defense_rating_away"] = feature_df["defense_rating_away_dc"].fillna(1.0)
+        feature_df.drop(columns=["attack_rating_away_dc", "defense_rating_away_dc"], inplace=True)
+
+    logger.info(f"Dataset de entrenamiento: {len(feature_df):,} partidos con {feature_df.shape[1]} columnas")
     return feature_df
 
 
@@ -284,7 +365,12 @@ def run_preparation_pipeline() -> pd.DataFrame:
     team_stats.reset_index().to_csv(DATA_PROCESSED / "team_stats.csv", index=False)
     logger.info("Estadísticas de equipos guardadas en data/processed/team_stats.csv")
 
-    match_features = build_match_features(results, team_stats)
+    # Calcular ratings de ataque/defensa (Dixon-Coles)
+    ratings = compute_attack_defense_ratings(results)
+    ratings.to_csv(DATA_PROCESSED / "attack_defense_ratings.csv", index=False)
+    logger.info("Ratings guardados en data/processed/attack_defense_ratings.csv")
+
+    match_features = build_match_features(results, team_stats, ratings)
     match_features.to_csv(DATA_PROCESSED / "match_features.csv", index=False)
     logger.info("Features de partidos guardadas en data/processed/match_features.csv")
 

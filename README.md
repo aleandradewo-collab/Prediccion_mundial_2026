@@ -76,6 +76,7 @@ python main.py --step train
 python main.py --step simulate
 
 # Repetir la simulación N veces (Monte Carlo)
+python main.py --step simulate --simulations 10000 #solo las simulaciones
 python main.py --simulations 10000
 ```
 

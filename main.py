@@ -6,6 +6,7 @@ Uso:
     python main.py --step prepare         # Solo preparar datos
     python main.py --step train           # Solo entrenar modelos
     python main.py --step simulate        # Solo simular torneo
+    python main.py --step simulate --simulations 10000 #solo las simulaciones
     python main.py --simulations 1000     # Con análisis Monte Carlo
     python main.py --help                 # Mostrar ayuda
 """

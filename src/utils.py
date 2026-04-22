@@ -25,6 +25,55 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# ── Pesos por torneo (para ponderar partidos en el entrenamiento) ─────────────
+# Lógica: cuanto más exigente el torneo y mejores los rivales, mayor el peso.
+# Torneos regionales de baja exigencia (Gold Cup, COSAFA, etc.) tienen peso
+# bajo para evitar que equipos como México o Sudáfrica inflen sus ratings
+# acumulando muchos partidos fáciles contra rivales débiles de su confederación.
+IMPORTANT_TOURNAMENTS = {
+    # Máxima exigencia — los mejores rivales del mundo
+    "FIFA World Cup":                       3.0,
+
+    # Alta exigencia — mejores equipos de cada confederación
+    "UEFA Euro":                            2.5,
+    "Copa América":                         2.5,
+    "Africa Cup of Nations":                2.0,
+    "AFC Asian Cup":                        2.0,
+
+    # Clasificatorias — rivales mixtos pero contexto competitivo real
+    "FIFA World Cup qualification":         1.5,
+    "UEFA Euro qualification":              1.2,
+    "African Cup of Nations qualification": 1.0,
+    "AFC Asian Cup qualification":          1.0,
+    "CONCACAF Nations League":              0.9,
+    "CONCACAF Nations League qualification":0.7,
+    "Gold Cup qualification":               0.7,
+
+    # Torneos de nivel medio
+    "UEFA Nations League":                  1.2,
+    "Gold Cup":                             0.8,  # rivales débiles de CONCACAF
+    "AFF Championship":                     0.7,
+    "WAFF Championship":                    0.7,
+    "Gulf Cup":                             0.7,
+    "EAFF Championship":                    0.7,
+    "Arab Cup":                             0.7,
+    "SAFF Cup":                             0.6,
+    "COSAFA Cup":                           0.5,  # muy regional y débil
+    "CECAFA Cup":                           0.5,
+    "MSG Prime Minister's Cup":             0.5,
+    "Pacific Games":                        0.4,
+    "Oceania Nations Cup":                  0.7,
+
+    # Amistosos — valor informativo bajo
+    "Friendly":                             0.8,
+    "FIFA Series":                          0.8,
+    "Intercontinental Cup":                 0.8,
+    "King's Cup":                           0.7,
+    "Kirin Challenge Cup":                  0.7,
+    "Kirin Cup":                            0.7,
+    "Baltic Cup":                           0.5,
+}
+
 # ── Equipos clasificados al Mundial 2026 (sorteo oficial) ─────────────────────
 # Nombres en el formato exacto que usa results.csv
 WORLD_CUP_2026_TEAMS = [

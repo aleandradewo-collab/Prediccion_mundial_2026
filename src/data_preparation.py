@@ -16,18 +16,19 @@ import logging
 
 from src.utils import DATA_RAW, DATA_PROCESSED, normalize_team_name, HOST_NATIONS, logger
 from src.dixon_coles import compute_attack_defense_ratings
+from src.squad_strength import build_squad_features, get_squad_features_for_team
 
 
 # ── Parámetros configurables ──────────────────────────────────────────────────
 RECENT_MATCHES_WINDOW = 10       # Partidos recientes para calcular forma
-MIN_DATE_TRAINING = "2006-01-01" # Solo entrenar con partidos modernos
+MIN_DATE_TRAINING = "2010-01-01" # Solo entrenar con partidos modernos
 IMPORTANT_TOURNAMENTS = {        # Peso extra para partidos de mayor importancia
     "FIFA World Cup": 3.0,
     "Copa América": 2.4,
     "UEFA Euro": 2.6,
     "AFC Asian Cup": 1.8,
+    "Gold Cup":           1.8,
     "Africa Cup of Nations": 2.1,
-    "Gold Cup":              1.8,
     "FIFA World Cup qualification": 1.5,
     "Friendly": 1.0,
 }
@@ -196,6 +197,7 @@ def build_match_features(
     results: pd.DataFrame,
     team_stats: pd.DataFrame,
     ratings: pd.DataFrame = None,
+    squad_df: pd.DataFrame = None,
     min_date: str = MIN_DATE_TRAINING
 ) -> pd.DataFrame:
     """
@@ -314,9 +316,53 @@ def build_match_features(
             "attack_rating_away":  1.0,
             "defense_rating_home": 1.0,
             "defense_rating_away":  1.0,
+
+            # Squad features (Transfermarkt) — se rellenan tras el bucle
+            "squad_value_home":      0.0,
+            "squad_value_away":      0.0,
+            "squad_form_home":       0.0,
+            "squad_form_away":       0.0,
+            "squad_age_home":        26.0,
+            "squad_age_away":        26.0,
+            "top_scorer_val_home":   0.0,
+            "top_scorer_val_away":   0.0,
+            "wc_goals_home":         0.0,
+            "wc_goals_away":         0.0,
+            "value_ratio":           1.0,
         })
 
     feature_df = pd.DataFrame(feature_rows)
+    # Añadir squad features de Transfermarkt si están disponibles
+    if squad_df is not None:
+        sq = squad_df.reset_index() if squad_df.index.name == "team" else squad_df
+
+        for side in [("home_team","home"), ("away_team","away")]:
+            col, suffix = side
+            feature_df = feature_df.merge(
+                sq[["team","squad_value_M","squad_form_score",
+                    "squad_avg_age","top_scorer_value_M","wc_goals_weighted"]].rename(
+                    columns={
+                        "team":               col,
+                        "squad_value_M":      f"_sq_val_{suffix}",
+                        "squad_form_score":   f"_sq_form_{suffix}",
+                        "squad_avg_age":      f"_sq_age_{suffix}",
+                        "top_scorer_value_M": f"_sq_ts_{suffix}",
+                        "wc_goals_weighted":  f"_sq_wc_{suffix}",
+                    }),
+                on=col, how="left"
+            )
+            feature_df[f"squad_value_{suffix}"]    = feature_df[f"_sq_val_{suffix}"].fillna(feature_df[f"squad_value_{suffix}"])
+            feature_df[f"squad_form_{suffix}"]     = feature_df[f"_sq_form_{suffix}"].fillna(feature_df[f"squad_form_{suffix}"])
+            feature_df[f"squad_age_{suffix}"]      = feature_df[f"_sq_age_{suffix}"].fillna(26.0)
+            feature_df[f"top_scorer_val_{suffix}"] = feature_df[f"_sq_ts_{suffix}"].fillna(0.0)
+            feature_df[f"wc_goals_{suffix}"]       = feature_df[f"_sq_wc_{suffix}"].fillna(0.0)
+            feature_df.drop(columns=[c for c in feature_df.columns if c.startswith("_sq_")], inplace=True)
+
+        feature_df["value_ratio"] = (
+            (feature_df["squad_value_home"] + 1) /
+            (feature_df["squad_value_away"] + 1)
+        )
+
     # Añadir ratings de ataque/defensa si están disponibles
     if ratings is not None:
         ratings_slim = ratings[["team", "attack_rating", "defense_rating"]].copy()
@@ -370,7 +416,10 @@ def run_preparation_pipeline() -> pd.DataFrame:
     ratings.to_csv(DATA_PROCESSED / "attack_defense_ratings.csv", index=False)
     logger.info("Ratings guardados en data/processed/attack_defense_ratings.csv")
 
-    match_features = build_match_features(results, team_stats, ratings)
+    # Calcular features de plantilla (Transfermarkt)
+    squad_df = build_squad_features()
+
+    match_features = build_match_features(results, team_stats, ratings, squad_df=squad_df)
     match_features.to_csv(DATA_PROCESSED / "match_features.csv", index=False)
     logger.info("Features de partidos guardadas en data/processed/match_features.csv")
 

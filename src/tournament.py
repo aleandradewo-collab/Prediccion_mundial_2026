@@ -22,13 +22,19 @@ from src.utils import (
 from src.model import predict_goals, load_trained_models
 from src.data_preparation import build_team_stats, load_raw_data, compute_h2h
 from src.dixon_coles import run_ratings_pipeline, compute_expected_goals
+from src.squad_strength import build_squad_features, get_squad_features_for_team
+from src.player_data import build_player_dataset
+from src.player_predictions import (
+    simulate_match_scorers, aggregate_tournament_stats,
+    print_tournament_awards, monte_carlo_player_stats
+)
 
 
 # ── Probabilidades de penaltis ────────────────────────────────────────────────
 
 DEFAULT_PENALTY_RATE  = 0.50   # para equipos sin historial
 REGRESSION_WEIGHT     = 3      # tandas "fantasma" bayesianas hacia la media
-PENALTY_DECAY_WEEKS   = 52 * 6 # vida media del peso: 10 años
+PENALTY_DECAY_WEEKS   = 52 * 4 # vida media del peso: 4 años
 
 
 def load_penalty_rates() -> dict:
@@ -105,7 +111,7 @@ def simulate_penalty_shootout(home: str, away: str, penalty_rates: dict) -> str:
 # ── Features para predicción ──────────────────────────────────────────────────
 
 def build_match_features_for_prediction(home, away, team_stats, results_df,
-                                        is_neutral=False, ratings=None):
+                                        is_neutral=False, ratings=None, squad_df=None):
     def get_stats(team):
         if team in team_stats.index:
             s = team_stats.loc[team]
@@ -135,6 +141,16 @@ def build_match_features_for_prediction(home, away, team_stats, results_df,
                 return alpha * raw + (1 - alpha) * 1.0
         return 1.0
 
+    # Squad features (Transfermarkt)
+    def get_sq(team, key):
+        if squad_df is not None:
+            sf = get_squad_features_for_team(team, squad_df)
+            return sf.get(key, 0.0)
+        return 0.0
+
+    sv_home = get_sq(home, "squad_value_M")
+    sv_away = get_sq(away, "squad_value_M")
+
     return {
         "fifa_points_home":    h["fifa_points"],
         "fifa_points_away":    a["fifa_points"],
@@ -155,6 +171,17 @@ def build_match_features_for_prediction(home, away, team_stats, results_df,
         "attack_rating_away":  get_dc(away, "attack_rating"),
         "defense_rating_home": get_dc(home, "defense_rating"),
         "defense_rating_away": get_dc(away, "defense_rating"),
+        "squad_value_home":    sv_home,
+        "squad_value_away":    sv_away,
+        "squad_form_home":     get_sq(home, "squad_form_score"),
+        "squad_form_away":     get_sq(away, "squad_form_score"),
+        "squad_age_home":      get_sq(home, "squad_avg_age"),
+        "squad_age_away":      get_sq(away, "squad_avg_age"),
+        "top_scorer_val_home": get_sq(home, "top_scorer_value_M"),
+        "top_scorer_val_away": get_sq(away, "top_scorer_value_M"),
+        "wc_goals_home":       get_sq(home, "wc_goals_weighted"),
+        "wc_goals_away":       get_sq(away, "wc_goals_weighted"),
+        "value_ratio":         (sv_home + 1) / (sv_away + 1),
     }
 
 
@@ -162,7 +189,7 @@ def build_match_features_for_prediction(home, away, team_stats, results_df,
 
 def simulate_match(home, away, model_home, model_away, feature_cols,
                    team_stats, results_df, penalty_rates,
-                   is_neutral=False, allow_draw=True, ratings=None):
+                   is_neutral=False, allow_draw=True, ratings=None, squad_df=None):
     """
     Simula un partido usando distribución de Poisson para los goles.
 
@@ -174,7 +201,7 @@ def simulate_match(home, away, model_home, model_away, feature_cols,
               went_to_penalties, penalty_winner (si aplica)
     """
     features = build_match_features_for_prediction(
-        home, away, team_stats, results_df, is_neutral, ratings=ratings)
+        home, away, team_stats, results_df, is_neutral, ratings=ratings, squad_df=squad_df)
     lambda_home, lambda_away = predict_goals(
         model_home, model_away, feature_cols, features)
 
@@ -211,7 +238,7 @@ def simulate_match(home, away, model_home, model_away, feature_cols,
 # ── Fase de grupos ────────────────────────────────────────────────────────────
 
 def simulate_group_stage(groups, model_home, model_away, feature_cols,
-                         team_stats, results_df, penalty_rates, ratings=None):
+                         team_stats, results_df, penalty_rates, ratings=None, squad_df=None, player_df=None):
     logger.info("\nSimulando fase de grupos...")
     group_results = {}
 
@@ -225,7 +252,7 @@ def simulate_group_stage(groups, model_home, model_away, feature_cols,
                 result = simulate_match(
                     home, away, model_home, model_away, feature_cols,
                     team_stats, results_df, penalty_rates,
-                    is_neutral=True, allow_draw=True, ratings=ratings)
+                    is_neutral=True, allow_draw=True, ratings=ratings, squad_df=squad_df)
 
                 hg, ag = result["home_goals"], result["away_goals"]
                 standings[home]["gf"] += hg
@@ -243,7 +270,17 @@ def simulate_group_stage(groups, model_home, model_away, feature_cols,
                     standings[home]["pts"] += 1
                     standings[away]["pts"]  += 1
 
-                match_log.append({"group": group_name, **result})
+                # Rastrear goles individuales si hay datos de jugadores
+                if player_df is not None:
+                    scorer_data = simulate_match_scorers(
+                        home, away, result["home_goals"], result["away_goals"],
+                        player_df, scorers_cache if "scorers_cache" in dir() else {})
+                    result["scorer_data"] = scorer_data
+                match_log.append({"group": group_name, **{k:v for k,v in result.items() if k != "scorer_data"}})
+                if "all_match_scorers" not in dir():
+                    pass
+                else:
+                    all_match_scorers.append(result.get("scorer_data", {}))
 
         table = (pd.DataFrame(standings).T
                    .reset_index()
@@ -405,7 +442,7 @@ def get_qualified_teams(group_results):
 # ── Fase eliminatoria ─────────────────────────────────────────────────────────
 
 def simulate_knockout_stage(qualified, model_home, model_away, feature_cols,
-                             team_stats, results_df, penalty_rates, ratings=None):
+                             team_stats, results_df, penalty_rates, ratings=None, squad_df=None, player_df=None):
     logger.info("\nSimulando fase eliminatoria...")
     bracket      = {}
     current_round = qualified.copy()
@@ -427,7 +464,7 @@ def simulate_knockout_stage(qualified, model_home, model_away, feature_cols,
             result = simulate_match(
                 home, away, model_home, model_away, feature_cols,
                 team_stats, results_df, penalty_rates,
-                is_neutral=True, allow_draw=False, ratings=ratings)
+                is_neutral=True, allow_draw=False, ratings=ratings, squad_df=squad_df)
 
             # Log si fue a penaltis
             if result["went_to_penalties"]:
@@ -453,11 +490,14 @@ def simulate_knockout_stage(qualified, model_home, model_away, feature_cols,
 
 def monte_carlo_simulation(groups, model_home, model_away, feature_cols,
                             team_stats, results_df, penalty_rates,
-                            ratings=None, n_simulations=1000):
+                            ratings=None, squad_df=None, player_df=None,
+                            n_simulations=1000):
     logger.info(f"\nMonte Carlo: {n_simulations} simulaciones...")
-    win_counts   = {}
-    final_counts = {}
-    penalty_counts = {}   # cuántas veces cada equipo llegó a penaltis y ganó
+    win_counts     = {}
+    final_counts   = {}
+    penalty_counts = {}
+    all_player_sim_stats = []   # estadísticas de jugadores por simulación
+    scorers_cache  = {}         # cache compartido para no recalcular
 
     root_logger    = logging.getLogger()
     original_level = root_logger.level
@@ -472,11 +512,13 @@ def monte_carlo_simulation(groups, model_home, model_away, feature_cols,
         np.random.seed(sim)
         gr = simulate_group_stage(
             groups, model_home, model_away, feature_cols,
-            team_stats, results_df, penalty_rates, ratings=ratings)
+            team_stats, results_df, penalty_rates,
+            ratings=ratings, squad_df=squad_df, player_df=player_df)
         qualified = get_qualified_teams(gr)
         bracket   = simulate_knockout_stage(
             qualified, model_home, model_away, feature_cols,
-            team_stats, results_df, penalty_rates, ratings=ratings)
+            team_stats, results_df, penalty_rates,
+            ratings=ratings, squad_df=squad_df, player_df=player_df)
 
         champion = bracket.get("Champion")
         if champion:
@@ -486,7 +528,6 @@ def monte_carlo_simulation(groups, model_home, model_away, feature_cols,
             for team in [bracket["Final"][0]["home"], bracket["Final"][0]["away"]]:
                 final_counts[team] = final_counts.get(team, 0) + 1
 
-        # Contar victorias vía penaltis en toda la fase eliminatoria
         for stage, matches in bracket.items():
             if not isinstance(matches, list):
                 continue
@@ -495,26 +536,54 @@ def monte_carlo_simulation(groups, model_home, model_away, feature_cols,
                     pw = m["penalty_winner"]
                     penalty_counts[pw] = penalty_counts.get(pw, 0) + 1
 
+        # Estadísticas individuales de esta simulación
+        if player_df is not None:
+            sim_match_scorers = []
+            all_matches_sim = []
+            for gdata in gr.values():
+                all_matches_sim.extend(gdata["matches"].to_dict("records"))
+            for stage, matches in bracket.items():
+                if isinstance(matches, list):
+                    all_matches_sim.extend(matches)
+
+            for m in all_matches_sim:
+                sd = simulate_match_scorers(
+                    m.get("home",""), m.get("away",""),
+                    int(m.get("home_goals",0)), int(m.get("away_goals",0)),
+                    player_df, scorers_cache)
+                sim_match_scorers.append(sd)
+
+            sim_stats = aggregate_tournament_stats(sim_match_scorers)
+            all_player_sim_stats.append(sim_stats)
+
     root_logger.setLevel(original_level)
     bar = "#" * 30
     print(f"\r  [{bar}] {n_simulations}/{n_simulations} completadas.")
 
+    # Tabla de equipos
     all_teams = set(list(win_counts.keys()) + list(final_counts.keys()))
     rows = []
     for t in sorted(all_teams):
         rows.append({
-            "team":               t,
-            "p_win_tournament":   win_counts.get(t, 0)   / n_simulations,
-            "p_reach_final":      final_counts.get(t, 0) / n_simulations,
-            "penalty_wins":       penalty_counts.get(t, 0),
-            "sim_wins":           win_counts.get(t, 0),
-            "sim_finals":         final_counts.get(t, 0),
+            "team":             t,
+            "p_win_tournament": win_counts.get(t, 0)   / n_simulations,
+            "p_reach_final":    final_counts.get(t, 0) / n_simulations,
+            "penalty_wins":     penalty_counts.get(t, 0),
+            "sim_wins":         win_counts.get(t, 0),
+            "sim_finals":       final_counts.get(t, 0),
         })
 
-    return (pd.DataFrame(rows)
-              .sort_values("p_win_tournament", ascending=False)
-              .reset_index(drop=True)
-              .assign(rank=lambda df: range(1, len(df) + 1)))
+    teams_df = (pd.DataFrame(rows)
+                  .sort_values("p_win_tournament", ascending=False)
+                  .reset_index(drop=True)
+                  .assign(rank=lambda df: range(1, len(df) + 1)))
+
+    # Tabla de jugadores
+    player_mc_df = None
+    if all_player_sim_stats:
+        player_mc_df = monte_carlo_player_stats(all_player_sim_stats, n_simulations)
+
+    return teams_df, player_mc_df
 
 
 # ── Pipeline principal ────────────────────────────────────────────────────────
@@ -532,6 +601,23 @@ def run_tournament_simulation(n_monte_carlo=1000, groups=None):
     else:
         ratings = run_ratings_pipeline(results_df)
 
+    # Cargar features de plantilla Transfermarkt
+    squad_path = DATA_PROCESSED / "squad_features.csv"
+    if squad_path.exists():
+        squad_df = pd.read_csv(squad_path).set_index("team")
+        logger.info(f"Squad features cargadas desde {squad_path}")
+    else:
+        squad_df = build_squad_features()
+
+    # Cargar dataset de jugadores para predicciones individuales
+    player_path = DATA_PROCESSED / "player_dataset.csv"
+    if player_path.exists():
+        player_df = pd.read_csv(player_path)
+        logger.info(f"Dataset de jugadores cargado: {len(player_df):,} jugadores")
+    else:
+        from src.player_data import build_player_dataset
+        player_df = build_player_dataset()
+
     # Cargar tasas de penaltis reales
     penalty_rates = load_penalty_rates()
 
@@ -547,7 +633,8 @@ def run_tournament_simulation(n_monte_carlo=1000, groups=None):
     # Simulacion base (bracket único con semilla fija)
     group_results = simulate_group_stage(
         groups, model_home, model_away, feature_cols,
-        team_stats, results_df, penalty_rates, ratings=ratings)
+        team_stats, results_df, penalty_rates, ratings=ratings,
+        squad_df=squad_df, player_df=player_df)
 
     all_tables  = []
     all_matches = []
@@ -563,7 +650,8 @@ def run_tournament_simulation(n_monte_carlo=1000, groups=None):
     qualified = get_qualified_teams(group_results)
     bracket   = simulate_knockout_stage(
         qualified, model_home, model_away, feature_cols,
-        team_stats, results_df, penalty_rates, ratings=ratings)
+        team_stats, results_df, penalty_rates, ratings=ratings,
+        squad_df=squad_df, player_df=player_df)
 
     champion = bracket.get("Champion", "Unknown")
     save_results(f"Campeon predicho: {champion}\n", "tournament_winner.txt")
@@ -586,14 +674,49 @@ def run_tournament_simulation(n_monte_carlo=1000, groups=None):
         "penalty_rates": penalty_rates,
     }
 
+    # Tracking de goles individuales en la simulación base
+    if player_df is not None:
+        all_base_matches = []
+        for gdata in group_results.values():
+            all_base_matches.extend(gdata["matches"].to_dict("records"))
+        for stage, matches in bracket.items():
+            if isinstance(matches, list):
+                all_base_matches.extend(matches)
+
+        scorers_cache = {}
+        base_match_scorers = []
+        for m in all_base_matches:
+            sd = simulate_match_scorers(
+                m.get("home",""), m.get("away",""),
+                int(m.get("home_goals",0)), int(m.get("away_goals",0)),
+                player_df, scorers_cache)
+            base_match_scorers.append(sd)
+
+        base_player_stats = aggregate_tournament_stats(base_match_scorers)
+        save_results(base_player_stats, "player_stats_base.csv")
+        print_tournament_awards(base_player_stats, champion)
+        output["player_stats"] = base_player_stats
+
     # Monte Carlo
     if n_monte_carlo > 1:
-        mc_df = monte_carlo_simulation(
+        mc_teams_df, mc_player_df = monte_carlo_simulation(
             groups, model_home, model_away, feature_cols,
             team_stats, results_df, penalty_rates,
-            ratings=ratings, n_simulations=n_monte_carlo)
-        save_results(mc_df, "monte_carlo_probabilities.csv")
-        output["monte_carlo"] = mc_df
+            ratings=ratings, squad_df=squad_df, player_df=player_df,
+            n_simulations=n_monte_carlo)
+        save_results(mc_teams_df, "monte_carlo_probabilities.csv")
+        output["monte_carlo"] = mc_teams_df
+
+        if mc_player_df is not None:
+            save_results(mc_player_df, "monte_carlo_player_stats.csv")
+            output["monte_carlo_players"] = mc_player_df
+
+            print("\n📊 TOP 10 MÁXIMOS GOLEADORES PROBABLES (Monte Carlo):")
+            print(f"  {'#':<4} {'Jugador':<25} {'Equipo':<20} {'Goles/sim':>10}  {'P(top scorer)':>14}")
+            print("  " + "-" * 78)
+            for _, row in mc_player_df.head(10).iterrows():
+                print(f"  {int(row['rank_goals']):<4} {row['player']:<25} {row['team']:<20} "
+                      f"{row['avg_goals']:>10.2f}  {row['p_top_scorer']*100:>13.1f}%")
 
     return output
 

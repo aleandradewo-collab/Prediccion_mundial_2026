@@ -32,6 +32,13 @@ FEATURE_COLS = [
     # Dixon-Coles: capturan ataque y defensa de forma multiplicativa
     "attack_rating_home",  "attack_rating_away",
     "defense_rating_home", "defense_rating_away",
+    # Transfermarkt: calidad real de plantilla
+    "squad_value_home",     "squad_value_away",
+    "squad_form_home",      "squad_form_away",
+    "squad_age_home",       "squad_age_away",
+    "top_scorer_val_home",  "top_scorer_val_away",
+    "wc_goals_home",        "wc_goals_away",
+    "value_ratio",
 ]
 
 TARGET_HOME = "home_goals"
@@ -118,8 +125,7 @@ def train(df: pd.DataFrame = None) -> dict:
 
         logger.info(f"  Mejor modelo: {best_name} (MAE={best_mae:.4f})")
 
-        weights = df["tournament_weight"].values  # ya está en el dataset
-        best_pipe.fit(X, y, model__sample_weight=weights)
+        best_pipe.fit(X, y)
 
         model_path = MODELS_DIR / f"model_{target_name}.pkl"
         joblib.dump(best_pipe, model_path)

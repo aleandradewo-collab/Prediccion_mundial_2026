@@ -168,18 +168,33 @@ def get_groups() -> dict:
 
 
 def save_results(data, filename: str, as_json: bool = False):
+    import time
     path = RESULTS_DIR / filename
-    if as_json:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-    else:
-        import pandas as pd
-        if isinstance(data, pd.DataFrame):
-            data.to_csv(path, index=False)
-        else:
+    
+    # Si el archivo existe y está bloqueado, intenta eliminarlo
+    if path.exists():
+        try:
+            path.unlink()
+            time.sleep(0.1)  # Pequeña pausa para liberar bloqueos
+        except Exception as e:
+            logger.warning(f"No se pudo eliminar archivo anterior: {e}")
+    
+    try:
+        if as_json:
             with open(path, "w", encoding="utf-8") as f:
-                f.write(str(data))
-    logger.info(f"Guardado: {path}")
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        else:
+            import pandas as pd
+            if isinstance(data, pd.DataFrame):
+                data.to_csv(path, index=False)
+            else:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(str(data))
+        logger.info(f"Guardado: {path}")
+    except PermissionError as e:
+        logger.error(f"❌ Permiso denegado al guardar {path}")
+        logger.error(f"   Por favor cierra el archivo si está abierto en Excel o en otro programa.")
+        raise
 
 
 def print_bracket(bracket: dict):

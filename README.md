@@ -70,6 +70,11 @@ Descarga los archivos de Transfermarkt desde Kaggle y colócalos en `data/raw/`:
 - `players.csv`, `appearances.csv`, `player_valuations.csv`
 - `national_teams.csv`, `competitions.csv`
 
+
+ `data/raw/appearances.csv` no está incluido en el repositorio por su tamaño (140MB).
+> Descárgalo de [Kaggle - Transfermarkt](https://www.kaggle.com/datasets/davidcariboo/player-scores)
+> y colócalo en `data/raw/` antes de ejecutar `python main.py --step prepare`.
+
 ### 4. Ejecutar el pipeline completo
 ```bash
 python main.py

@@ -34,3 +34,5 @@ results/*.txt
 
 # Logs
 *.log
+
+data/raw/appearances.csv

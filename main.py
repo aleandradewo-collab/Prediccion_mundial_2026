@@ -11,7 +11,7 @@ Uso:
     python main.py --simulations 1        # Una sola simulación (bracket único)
     python main.py --help                 # Mostrar ayuda
     python src/export_web.py          # empaqueta lo que ya tienes
-    python scripts/deploy_web.py --push   # publica
+    python scripts/deploy_web.py    # publica
 """
 
 import argparse

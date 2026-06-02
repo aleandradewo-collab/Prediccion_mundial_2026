@@ -12,6 +12,7 @@ Uso:
     python main.py --help                 # Mostrar ayuda
     python src/export_web.py          # empaqueta lo que ya tienes
     python scripts/deploy_web.py    # publica
+    Se ve la pagina en https://aleandradewo-collab.github.io/Prediccion_mundial_2026/
 """
 
 import argparse

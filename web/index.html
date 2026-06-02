@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World Cup 2026 Predictor</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --red:#C8102E; --red2:#9B0B22;
+  --blue:#0A3161; --blue2:#1254A0;
+  --gold:#E8A020; --gold2:#C4850A;
+  --green:#009A44;
+  --bg:#0D1117; --bg2:#161B22; --bg3:#1F2937; --bg4:#111827;
+  --border:rgba(255,255,255,0.07);
+  --border2:rgba(255,255,255,0.12);
+  --text:#F0F4F8; --muted:#7B90B4; --muted2:#A8BEDC;
+  --card:rgba(255,255,255,0.03);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;font-size:15px;min-height:100vh}
+
+/* NAV */
+.nav{background:rgba(13,17,23,0.96);backdrop-filter:blur(12px);border-bottom:1px solid rgba(200,16,46,0.3);padding:0 1.5rem;display:flex;align-items:center;gap:1rem;height:56px;position:sticky;top:0;z-index:200}
+.nav-logo{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:20px;letter-spacing:2px;color:#fff;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.nav-logo em{color:var(--gold);font-style:normal}
+.nav-links{display:flex;gap:2px;margin-left:auto;flex-wrap:wrap}
+.nav-btn{background:none;border:none;color:var(--muted);font-family:'Barlow',sans-serif;font-size:12px;font-weight:500;letter-spacing:.6px;text-transform:uppercase;padding:5px 11px;border-radius:5px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.nav-btn:hover{background:var(--card);color:var(--text)}
+.nav-btn.on{background:rgba(200,16,46,0.18);color:#fff;border:1px solid rgba(200,16,46,0.4)}
+
+/* LAYOUT */
+.page{max-width:1240px;margin:0 auto;padding:1.5rem}
+.ptitle{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:26px;letter-spacing:1px;margin-bottom:3px}
+.psub{color:var(--muted);font-size:13px;margin-bottom:1.5rem}
+
+/* CARD */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1.1rem 1.25rem}
+.ctitle{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:.9rem}
+
+/* STATS ROW */
+.srow{display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.schip{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.7rem 1.1rem;flex:1;min-width:120px}
+.schip-label{font-size:10px;text-transform:uppercase;letter-spacing:.9px;color:var(--muted);margin-bottom:3px}
+.schip-val{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:24px;color:#fff;line-height:1}
+.schip-val.g{color:var(--gold)} .schip-val.r{color:#E05568} .schip-val.b{color:#5B9BD5}
+
+/* PROB BAR */
+.pbar{margin-bottom:9px}
+.pbar-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.pbar-team{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500}
+.pbar-pct{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:15px;color:var(--gold)}
+.pbar-track{height:5px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden}
+.pbar-fill{height:100%;border-radius:3px;transition:width .7s cubic-bezier(.4,0,.2,1)}
+
+/* GROUPS */
+.ggrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:.75rem}
+.gcard{background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.ghead{background:linear-gradient(90deg,var(--red2),var(--blue2));padding:7px 12px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:14px;letter-spacing:1px;color:#fff;display:flex;justify-content:space-between;align-items:center}
+.gteam{display:flex;align-items:center;gap:9px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:500;cursor:pointer;transition:background .1s}
+.gteam:last-child{border-bottom:none}
+.gteam:hover{background:rgba(255,255,255,0.03)}
+.gteam-rank{font-family:'Barlow Condensed',sans-serif;color:var(--muted);font-size:11px;min-width:30px;text-align:right;flex-shrink:0}
+.gteam-prob{font-size:10px;background:rgba(232,160,32,.14);color:var(--gold);border-radius:3px;padding:1px 5px;font-family:'Barlow Condensed',sans-serif;font-weight:700;flex-shrink:0}
+
+/* BRACKET */
+.bscroll{overflow-x:auto;padding-bottom:.5rem}
+.bwrap{display:flex;gap:0;min-width:900px}
+.bstage{display:flex;flex-direction:column;flex:1;min-width:160px}
+.bstitle{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);text-align:center;padding:6px 0 10px;border-bottom:1px solid var(--border);margin-bottom:6px}
+.bmatches{display:flex;flex-direction:column;justify-content:space-around;flex:1;gap:3px}
+.bmatch{background:var(--bg2);border:1px solid var(--border);border-radius:5px;overflow:hidden;margin:2px 3px}
+.bteam{display:flex;align-items:center;gap:5px;padding:5px 7px;font-size:11px;font-weight:500;border-bottom:1px solid var(--border)}
+.bteam:last-child{border-bottom:none}
+.bteam.won{background:rgba(232,160,32,.1);color:var(--gold)}
+.bteam.pen{background:rgba(232,160,32,.06);color:var(--gold2)}
+.bscore{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;min-width:16px;text-align:center;margin-left:auto}
+.btbd{color:var(--muted);font-style:italic}
+
+/* MATCHUP SIM */
+.msim{display:flex;align-items:center;gap:1rem;padding:1.25rem;background:var(--bg3);border-radius:10px;margin-bottom:1rem}
+.mteam{flex:1;text-align:center}
+.mteam select{width:100%;background:var(--bg2);border:1px solid rgba(255,255,255,.15);border-radius:6px;color:var(--text);font-family:'Barlow',sans-serif;font-size:13px;padding:7px 8px;outline:none}
+.mteam select:focus{border-color:rgba(232,160,32,.5)}
+.mvs{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:22px;color:var(--muted);flex-shrink:0}
+.pbtn{width:100%;padding:9px;background:var(--red);border:none;border-radius:7px;color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:15px;letter-spacing:1px;cursor:pointer;transition:background .15s}
+.pbtn:hover{background:var(--red2)}
+.rbox{display:flex;align-items:center;justify-content:center;gap:1.5rem;padding:1.5rem;background:var(--bg2);border:1px solid var(--border);border-radius:10px;margin-top:.75rem;flex-wrap:wrap}
+.rteam{text-align:center;flex:1;min-width:100px}
+.rname{font-size:14px;font-weight:600;margin-bottom:6px}
+.rscore{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:50px;line-height:1;color:#fff}
+.rscore.won{color:var(--gold)} .rscore.drew{color:var(--muted)}
+.rprob{font-size:11px;color:var(--muted);margin-top:4px}
+.rdraw{text-align:center;min-width:60px}
+.rdraw-label{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;color:var(--muted)}
+.rdraw-pct{font-size:11px;color:var(--muted);margin-top:4px}
+
+/* TABLE */
+.dtable{width:100%;border-collapse:collapse}
+.dtable th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.9px;color:var(--muted);padding:7px 10px;border-bottom:1px solid var(--border);font-weight:500}
+.dtable td{padding:8px 10px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.03)}
+.dtable tr:hover td{background:rgba(255,255,255,.02)}
+.rbadge{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-size:10px;font-weight:800;font-family:'Barlow Condensed',sans-serif}
+.r1{background:rgba(232,160,32,.2);color:var(--gold);border:1px solid var(--gold2)}
+.r2{background:rgba(255,255,255,.08);color:#ccc}
+.r3{background:rgba(200,130,10,.15);color:#CD7F32}
+.rn{background:rgba(255,255,255,.04);color:var(--muted)}
+
+/* FEAT BAR */
+.frow{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.fname{font-size:11px;min-width:190px;color:var(--text)}
+.ftrack{flex:1;height:7px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
+.ffill{height:100%;border-radius:3px}
+.fval{font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--muted);min-width:38px;text-align:right}
+
+/* TABS */
+.tabs{display:flex;gap:3px;border-bottom:1px solid var(--border);margin-bottom:1.25rem;flex-wrap:wrap}
+.tab{padding:7px 14px;font-size:12px;font-weight:500;color:var(--muted);background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1px}
+.tab.on{color:var(--gold);border-bottom-color:var(--gold)}
+.tab:hover:not(.on){color:var(--text)}
+
+/* HERO */
+.hero{background:linear-gradient(135deg,rgba(10,49,97,.9) 0%,rgba(13,17,23,.97) 65%);border:1px solid rgba(232,160,32,.2);border-radius:14px;padding:2rem 2.5rem;margin-bottom:1.5rem;position:relative;overflow:hidden}
+.hero::after{content:'';position:absolute;right:-40px;top:-40px;width:260px;height:260px;background:radial-gradient(circle,rgba(200,16,46,.08) 0%,transparent 70%);pointer-events:none}
+.htitle{font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:44px;line-height:1;margin-bottom:10px;position:relative}
+.htitle em{color:var(--gold);font-style:normal}
+.hsub{color:var(--muted2);font-size:14px;max-width:520px;line-height:1.65;position:relative}
+
+/* LOADING */
+.load{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;min-height:70vh}
+.spin{width:36px;height:36px;border:3px solid rgba(255,255,255,.08);border-top-color:var(--red);border-radius:50%;animation:rot .8s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* ABOUT GRID */
+.aboutgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.75rem}
+.acard{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem}
+.aicon{font-size:22px;margin-bottom:7px}
+.atitle{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;margin-bottom:5px}
+.adesc{font-size:12px;color:var(--muted2);line-height:1.6}
+.codeline{display:flex;align-items:flex-start;gap:10px;margin-bottom:9px}
+code{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:3px 7px;font-size:11px;font-family:monospace;color:var(--gold);white-space:nowrap}
+
+/* GRID HELPERS */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem}
+@media(max-width:760px){.g2,.g3{grid-template-columns:1fr} .nav-links{display:none} .htitle{font-size:28px} .msim{flex-direction:column} .page{padding:1rem}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useCallback } = React;
+const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+        Cell, LineChart, Line, CartesianGrid, RadarChart, Radar,
+        PolarGrid, PolarAngleAxis, PolarRadiusAxis } = Recharts;
+
+// ── Flag emoji ─────────────────────────────────────────────────────────────
+const SPECIAL_FLAGS = { 'GB-ENG':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','GB-SCT':'🏴󠁧󠁢󠁳󠁣󠁴󠁿','GB-WLS':'🏴󠁧󠁢󠁷󠁬󠁳󠁿' };
+function flagEmoji(code) {
+  if (!code || code.length < 2) return '🌐';
+  if (SPECIAL_FLAGS[code]) return SPECIAL_FLAGS[code];
+  const c = code.toUpperCase().replace('GB-','').slice(0,2);
+  try { return String.fromCodePoint(...[...c].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65)); }
+  catch { return '🌐'; }
+}
+
+// ── Format helpers ─────────────────────────────────────────────────────────
+const pct = v => v != null ? `${Number(v).toFixed(1)}%` : '—';
+const fmt = (v, d=2) => v != null ? Number(v).toFixed(d) : '—';
+const fmtK = v => v != null ? Number(v).toLocaleString() : '—';
+
+// ── Mock data (si no hay web_data.json) ─────────────────────────────────────
+function mockData() {
+  const GROUPS = {
+    A:["Mexico","South Africa","South Korea","Czech Republic"],
+    B:["Canada","Bosnia and Herzegovina","Qatar","Switzerland"],
+    C:["Brazil","Morocco","Haiti","Scotland"],
+    D:["United States","Paraguay","Australia","Turkey"],
+    E:["Germany","Curaçao","Ivory Coast","Ecuador"],
+    F:["Netherlands","Japan","Sweden","Tunisia"],
+    G:["Belgium","Egypt","Iran","New Zealand"],
+    H:["Spain","Cape Verde","Saudi Arabia","Uruguay"],
+    I:["France","Senegal","Iraq","Norway"],
+    J:["Argentina","Algeria","Austria","Jordan"],
+    K:["Portugal","DR Congo","Uzbekistan","Colombia"],
+    L:["England","Croatia","Ghana","Panama"],
+  };
+  const FLAGS = {
+    Mexico:"MX",Brazil:"BR",Argentina:"AR",France:"FR","United States":"US",
+    England:"GB-ENG",Germany:"DE",Spain:"ES",Portugal:"PT",Netherlands:"NL",
+    Belgium:"BE",Canada:"CA","South Korea":"KR",Japan:"JP",Morocco:"MA",
+    Senegal:"SN",Croatia:"HR",Uruguay:"UY",Switzerland:"CH",Ecuador:"EC",
+  };
+  const champTeams = [
+    {team:"Brazil",      prob:17.2, flag:"BR"},
+    {team:"France",      prob:15.4, flag:"FR"},
+    {team:"Argentina",   prob:14.1, flag:"AR"},
+    {team:"England",     prob:10.8, flag:"GB-ENG"},
+    {team:"Spain",       prob:9.3,  flag:"ES"},
+    {team:"Germany",     prob:7.9,  flag:"DE"},
+    {team:"Portugal",    prob:6.8,  flag:"PT"},
+    {team:"Netherlands", prob:4.9,  flag:"NL"},
+    {team:"Belgium",     prob:3.6,  flag:"BE"},
+    {team:"United States",prob:2.8, flag:"US"},
+    {team:"Mexico",      prob:2.1,  flag:"MX"},
+    {team:"Japan",       prob:1.8,  flag:"JP"},
+  ];
+  return {
+    _mock: true,
+    meta: { n_simulations:1000, model_type:"Poisson + GBR (datos de ejemplo)", model_mae_home:0.93, model_mae_away:0.80 },
+    groups: Object.fromEntries(Object.entries(GROUPS).map(([g,ts]) => [
+      `Grupo ${g}`, ts.map(t => ({team:t, flag:FLAGS[t]||t.slice(0,2).toUpperCase(), fifa_rank:null}))
+    ])),
+    team_stats: Object.fromEntries(champTeams.map(t => [t.team, {
+      flag: t.flag, fifa_rank: Math.floor(Math.random()*15)+1,
+      attack_rating: +(1.1+Math.random()*.5).toFixed(3),
+      defense_rating: +(0.7+Math.random()*.3).toFixed(3),
+      squad_value_M: +(300+Math.random()*900).toFixed(0)*1,
+    }])),
+    monte_carlo: {
+      n_simulations: 1000,
+      champion_probabilities: champTeams.map(t => ({team:t.team, probability:t.prob, flag:t.flag})),
+      final_probabilities: Object.fromEntries(champTeams.map(t => [t.team, t.prob*1.85])),
+      top_scorers_mc: [
+        {player:"Kylian Mbappé",   team:"France",   avg_goals:3.1, p_mvp:0.12, p_top_scorer:0.08},
+        {player:"Vinicius Jr.",    team:"Brazil",   avg_goals:2.9, p_mvp:0.10, p_top_scorer:0.07},
+        {player:"Lamine Yamal",    team:"Spain",    avg_goals:2.6, p_mvp:0.07, p_top_scorer:0.06},
+        {player:"Harry Kane",      team:"England",  avg_goals:2.5, p_mvp:0.09, p_top_scorer:0.06},
+        {player:"Erling Haaland",  team:"Norway",   avg_goals:2.4, p_mvp:0.06, p_top_scorer:0.05},
+      ],
+    },
+    bracket: { champion:"Brazil", knockout:{}, group_standings:{} },
+    feature_importance: { home:[
+      {feature:"attack_rating",importance:.18},{feature:"defense_rating_opp",importance:.15},
+      {feature:"fifa_rank_diff",importance:.13},{feature:"recent_form",importance:.11},
+      {feature:"squad_value_M",importance:.09},{feature:"home_advantage",importance:.08},
+      {feature:"squad_form_score",importance:.07},{feature:"wc_goals",importance:.06},
+      {feature:"goals_scored_avg",importance:.05},{feature:"squad_avg_age",importance:.04},
+    ]},
+    dataset_stats: {
+      total_matches:49000, wc_matches:900,
+      date_range:["1872-11-30","2025-12-15"],
+      avg_goals_wc:[
+        {year:1966,avg_goals:2.34},{year:1970,avg_goals:2.97},{year:1974,avg_goals:2.55},
+        {year:1978,avg_goals:2.68},{year:1982,avg_goals:2.81},{year:1986,avg_goals:2.54},
+        {year:1990,avg_goals:2.21},{year:1994,avg_goals:2.71},{year:1998,avg_goals:2.67},
+        {year:2002,avg_goals:2.52},{year:2006,avg_goals:2.30},{year:2010,avg_goals:2.27},
+        {year:2014,avg_goals:2.67},{year:2018,avg_goals:2.64},{year:2022,avg_goals:2.69},
+      ],
+      world_cup_winners:[
+        {team:"Brazil",titles:5},{team:"Germany",titles:4},{team:"Italy",titles:4},
+        {team:"Argentina",titles:3},{team:"France",titles:2},{team:"Uruguay",titles:2},
+        {team:"England",titles:1},{team:"Spain",titles:1},
+      ],
+    },
+  };
+}
+
+// ── Poisson simulation (en el cliente) ─────────────────────────────────────
+function poisson(lambda) {
+  let k=0, p=1, L=Math.exp(-lambda);
+  do { k++; p *= Math.random(); } while (p > L);
+  return k-1;
+}
+function simulateMatchClient(home, away, teamStats) {
+  const h = teamStats[home] || {};
+  const a = teamStats[away] || {};
+  const atk_h = h.attack_rating  || 1.0;
+  const def_h = h.defense_rating || 1.0;
+  const atk_a = a.attack_rating  || 1.0;
+  const def_a = a.defense_rating || 1.0;
+  const HOME_ADV = 1.1;
+  const BASE = 1.2;
+  const lH = Math.max(0.1, Math.min(atk_h * def_a * BASE * HOME_ADV, 6));
+  const lA = Math.max(0.1, Math.min(atk_a * def_h * BASE, 6));
+  let hWin=0, draw=0, aWin=0, tH=0, tA=0;
+  const N = 8000;
+  for(let i=0;i<N;i++){
+    const gh=poisson(lH), ga=poisson(lA);
+    tH+=gh; tA+=ga;
+    if(gh>ga)hWin++; else if(ga>gh)aWin++; else draw++;
+  }
+  return {
+    expH:+(tH/N).toFixed(2), expA:+(tA/N).toFixed(2),
+    pHWin:+(hWin/N*100).toFixed(1), pDraw:+(draw/N*100).toFixed(1),
+    pAWin:+(aWin/N*100).toFixed(1),
+    lH:+lH.toFixed(3), lA:+lA.toFixed(3),
+  };
+}
+
+// ── ProbBar ────────────────────────────────────────────────────────────────
+function ProbBar({team, probability, flagCode, maxP, color='#C8102E'}) {
+  const w = maxP > 0 ? (probability/maxP)*100 : 0;
+  const accent = probability > 15 ? '#E8A020' : probability > 8 ? '#5B9BD5' : '#7B90B4';
+  return (
+    <div className="pbar">
+      <div className="pbar-head">
+        <div className="pbar-team">
+          <span>{flagEmoji(flagCode)}</span>
+          <span>{team}</span>
+        </div>
+        <span className="pbar-pct">{pct(probability)}</span>
+      </div>
+      <div className="pbar-track">
+        <div className="pbar-fill" style={{width:`${w}%`,background:`linear-gradient(90deg,${color},${accent})`}}/>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// PAGES
+// ════════════════════════════════════════════════════════════════════════════
+
+function PageHome({data}) {
+  const mc   = data.monte_carlo || {};
+  const meta = data.meta || {};
+  const ds   = data.dataset_stats || {};
+  const champ = (mc.champion_probabilities || []).slice(0,5);
+  const maxP = champ.length ? champ[0].probability : 1;
+  const ts   = data.team_stats || {};
+
+  return (
+    <div>
+      <div className="hero">
+        <div className="htitle">WORLD CUP<br/><em>2026 PREDICTOR</em></div>
+        <p className="hsub">
+          Modelo de Machine Learning (Poisson + Gradient Boosting) entrenado con {fmtK(ds.total_matches)} partidos
+          históricos y {fmtK(mc.n_simulations || 0)} simulaciones Monte Carlo.
+          {data._mock && ' ⚠️ Datos de ejemplo — sube tu web_data.json para ver predicciones reales.'}
+        </p>
+      </div>
+
+      <div className="srow">
+        {[
+          {label:'Partidos históricos', val:fmtK(ds.total_matches), cls:'b'},
+          {label:'Simulaciones MC',     val:fmtK(mc.n_simulations||0), cls:''},
+          {label:'MAE goles local',     val:meta.model_mae_home ? fmt(meta.model_mae_home) : '~0.93', cls:'g'},
+          {label:'MAE goles visitante', val:meta.model_mae_away ? fmt(meta.model_mae_away) : '~0.80', cls:'g'},
+          {label:'Equipos en 2026',     val:'48', cls:'r'},
+          {label:'Grupos',              val:'12', cls:''},
+        ].map(s => (
+          <div className="schip" key={s.label}>
+            <div className="schip-label">{s.label}</div>
+            <div className={`schip-val ${s.cls}`}>{s.val}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="g2">
+        <div className="card">
+          <div className="ctitle">🏆 Favoritos a Campeón</div>
+          {champ.map((t,i) => (
+            <ProbBar key={t.team} team={t.team} probability={t.probability}
+              flagCode={ts[t.team]?.flag || t.flag} maxP={maxP}
+              color={i===0?'#C8102E':i===1?'#0A3161':'#1a5a2a'} />
+          ))}
+        </div>
+        <div className="card">
+          <div className="ctitle">📈 Goles promedio por Mundial</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={ds.avg_goals_wc||[]} margin={{top:4,right:8,bottom:0,left:-20}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.05)"/>
+              <XAxis dataKey="year" tick={{fill:'#7B90B4',fontSize:10}}/>
+              <YAxis tick={{fill:'#7B90B4',fontSize:10}} domain={[1.8,3.3]}/>
+              <Tooltip contentStyle={{background:'#161B22',border:'1px solid rgba(255,255,255,.1)',borderRadius:'6px',fontSize:'11px'}}
+                labelStyle={{color:'#fff'}} itemStyle={{color:'#E8A020'}}/>
+              <Line type="monotone" dataKey="avg_goals" stroke="#E8A020" strokeWidth={2}
+                dot={{fill:'#E8A020',r:3}} name="Goles/partido"/>
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {(ds.world_cup_winners||[]).length > 0 && (
+        <div className="card" style={{marginTop:'1rem'}}>
+          <div className="ctitle">🏅 Campeones históricos del Mundo</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:'8px'}}>
+            {ds.world_cup_winners.map((w,i) => (
+              <div key={w.team} style={{
+                background:'rgba(255,255,255,.04)',border:'1px solid var(--border)',
+                borderRadius:'7px',padding:'6px 14px',display:'flex',alignItems:'center',gap:'8px'
+              }}>
+                <span className={`rbadge ${i===0?'r1':i===1?'r2':i===2?'r3':'rn'}`}>{i+1}</span>
+                <span style={{fontSize:'13px',fontWeight:500}}>{w.team}</span>
+                <span style={{fontFamily:'Barlow Condensed',fontWeight:800,color:'var(--gold)',fontSize:'15px'}}>
+                  {'🏆'.repeat(Math.min(w.titles,5))}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── GRUPOS ─────────────────────────────────────────────────────────────────
+function PageGroups({data}) {
+  const groups = data.groups || {};
+  const ts     = data.team_stats || {};
+  const mc     = data.monte_carlo || {};
+  const champMap = Object.fromEntries(
+    (mc.champion_probabilities||[]).map(t=>[t.team, t.probability])
+  );
+
+  return (
+    <div>
+      <div className="ptitle">Grupos del Mundial 2026</div>
+      <p className="psub">12 grupos · 4 equipos por grupo · Sedes: USA, México, Canadá</p>
+      <div className="ggrid">
+        {Object.entries(groups).map(([gname, teams]) => (
+          <div className="gcard" key={gname}>
+            <div className="ghead">
+              <span>{gname}</span>
+              <span style={{fontSize:'11px',opacity:.7}}>4 equipos</span>
+            </div>
+            {teams.map(t => {
+              const rank = t.fifa_rank || ts[t.team]?.fifa_rank;
+              const prob = champMap[t.team];
+              return (
+                <div className="gteam" key={t.team}>
+                  <span style={{fontSize:'17px'}}>{flagEmoji(t.flag || ts[t.team]?.flag || t.team.slice(0,2))}</span>
+                  <span style={{flex:1,fontSize:'12px'}}>{t.team}</span>
+                  {rank && <span className="gteam-rank">#{rank}</span>}
+                  {prob != null && <span className="gteam-prob">{prob.toFixed(1)}%</span>}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── BRACKET ────────────────────────────────────────────────────────────────
+function PageBracket({data}) {
+  const bracket    = data.bracket || {};
+  const mc         = data.monte_carlo || {};
+  const ts         = data.team_stats || {};
+  const champProbs = mc.champion_probabilities || [];
+  const champMap   = Object.fromEntries(champProbs.map(t=>[t.team, t.probability]));
+
+  const STAGE_ORDER = ["Round of 32","Round of 16","Quarter-finals","Semi-finals","Final"];
+  const knockout    = bracket.knockout || {};
+  const champion    = bracket.champion;
+
+  function MatchCard({m, isFinal=false}) {
+    const hp = champMap[m.home] || 0;
+    const ap = champMap[m.away] || 0;
+    const fav = hp >= ap ? m.home : m.away;
+    return (
+      <div className="bmatch" style={isFinal ? {border:'1px solid rgba(232,160,32,.4)'} : {}}>
+        {[m.home, m.away].map((team, i) => {
+          const goals = i===0 ? m.home_goals : m.away_goals;
+          const isWinner = team && team === m.winner && m.home && m.away;
+          const isPen = isWinner && m.went_to_penalties;
+          return (
+            <div key={i} className={`bteam ${isPen?'pen':isWinner?'won':''} ${!team?'btbd':''}`}>
+              <span style={{fontSize:'13px'}}>{team ? flagEmoji(ts[team]?.flag || team.slice(0,2)) : ''}</span>
+              <span style={{flex:1,fontSize:'11px'}}>{team || 'Por definir'}</span>
+              {goals != null && <span className="bscore">{goals}{isPen?'*':''}</span>}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Construir el bracket con datos reales o con favoritos MC
+  const hasRealKnockout = Object.keys(knockout).length > 0;
+
+  // Si no hay datos reales, simular bracket con top favoritos
+  function getFavBracket() {
+    const top32 = champProbs.slice(0,16).map(t=>t.team);
+    const stages = {};
+    let current = top32;
+    for(const stage of STAGE_ORDER) {
+      if(current.length < 2) break;
+      const matches = [];
+      for(let i=0;i<current.length;i+=2) {
+        const h = current[i], a = current[i+1] || 'TBD';
+        const hP = champMap[h]||0, aP = champMap[a]||0;
+        matches.push({home:h, away:a, winner:hP>=aP?h:a,
+          home_goals:null, away_goals:null, went_to_penalties:false});
+      }
+      stages[stage] = matches;
+      current = matches.map(m=>m.winner);
+    }
+    return stages;
+  }
+
+  const displayKnockout = hasRealKnockout ? knockout : getFavBracket();
+
+  return (
+    <div>
+      <div className="ptitle">Bracket del Torneo</div>
+      <p className="psub">
+        {hasRealKnockout
+          ? `Resultado de la simulación base · * = ganó por penaltis · campeón predicho: ${champion || '—'}`
+          : 'Bracket proyectado con favoritos Monte Carlo (ejecuta el modelo para ver resultados reales)'}
+      </p>
+
+      <div className="bscroll">
+        <div className="bwrap">
+          {STAGE_ORDER.map(stage => {
+            const matches = displayKnockout[stage];
+            if (!matches || !matches.length) return null;
+            return (
+              <div className="bstage" key={stage}>
+                <div className="bstitle">{stage}</div>
+                <div className="bmatches">
+                  {matches.map((m,i) => (
+                    <MatchCard key={i} m={m} isFinal={stage==='Final'} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {champion && (
+        <div className="card" style={{marginTop:'1rem',borderColor:'rgba(232,160,32,.3)',textAlign:'center',padding:'1.5rem'}}>
+          <div style={{fontSize:'42px',marginBottom:'8px'}}>{flagEmoji(ts[champion]?.flag || champion.slice(0,2))}</div>
+          <div style={{fontFamily:'Barlow Condensed',fontWeight:900,fontSize:'32px',color:'#fff'}}>{champion}</div>
+          <div style={{fontFamily:'Barlow Condensed',fontWeight:700,fontSize:'20px',color:'var(--gold)',marginTop:'4px'}}>
+            🏆 Campeón predicho · {pct(champMap[champion])} probabilidad
+          </div>
+        </div>
+      )}
+
+      {/* Clasificación de grupos si existe */}
+      {Object.keys(bracket.group_standings||{}).length > 0 && (
+        <div style={{marginTop:'1.25rem'}}>
+          <div className="ptitle" style={{fontSize:'18px',marginBottom:'.75rem'}}>Fase de Grupos</div>
+          <div className="ggrid">
+            {Object.entries(bracket.group_standings).map(([grp, rows]) => (
+              <div className="gcard" key={grp}>
+                <div className="ghead"><span>Grupo {grp}</span></div>
+                <table className="dtable" style={{width:'100%'}}>
+                  <thead><tr>
+                    <th>#</th><th>Equipo</th><th>Pts</th><th>GF</th><th>GC</th>
+                  </tr></thead>
+                  <tbody>
+                    {rows.map((r,i) => (
+                      <tr key={r.team}>
+                        <td>
+                          <span className={`rbadge ${i===0?'r1':i===1?'r2':i===2?'r3':'rn'}`}>
+                            {i+1}
+                          </span>
+                        </td>
+                        <td style={{fontWeight:500}}>{r.team}</td>
+                        <td style={{fontFamily:'Barlow Condensed',fontWeight:700,color:'var(--gold)'}}>{r.pts}</td>
+                        <td style={{color:'var(--muted)'}}>{r.gf}</td>
+                        <td style={{color:'var(--muted)'}}>{r.gc}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── PREDICCIONES ───────────────────────────────────────────────────────────
+function PagePredictions({data}) {
+  const mc     = data.monte_carlo || {};
+  const ts     = data.team_stats || {};
+  const champ  = mc.champion_probabilities || [];
+  const finals = mc.final_probabilities || {};
+  const scorers= mc.top_scorers_mc || [];
+  const [tab, setTab] = useState('champion');
+  const [homeT, setHomeT] = useState('');
+  const [awayT, setAwayT] = useState('');
+  const [simResult, setSimResult] = useState(null);
+
+  const allTeams = useMemo(() => {
+    const s = new Set();
+    champ.forEach(t=>s.add(t.team));
+    Object.keys(ts).forEach(t=>s.add(t));
+    return [...s].sort();
+  }, [champ, ts]);
+
+  useEffect(() => {
+    if(allTeams.length >= 2) { setHomeT(allTeams[0]); setAwayT(allTeams[1]); }
+  }, [allTeams.length]);
+
+  const handleSim = useCallback(() => {
+    if(!homeT || !awayT || homeT===awayT) return;
+    setSimResult(simulateMatchClient(homeT, awayT, ts));
+  }, [homeT, awayT, ts]);
+
+  const maxChamp = champ.length ? champ[0].probability : 1;
+  const sortedFinals = Object.entries(finals).sort((a,b)=>b[1]-a[1]).slice(0,16);
+  const maxFinal = sortedFinals.length ? sortedFinals[0][1] : 1;
+
+  return (
+    <div>
+      <div className="ptitle">Predicciones</div>
+      <p className="psub">{fmtK(mc.n_simulations||0)} simulaciones Monte Carlo · Probabilidades calculadas</p>
+
+      {/* Simulador de partido */}
+      <div className="card" style={{marginBottom:'1rem'}}>
+        <div className="ctitle">⚽ Simula un partido</div>
+        <div className="msim">
+          <div className="mteam">
+            <select value={homeT} onChange={e=>setHomeT(e.target.value)}>
+              {allTeams.map(t=><option key={t}>{t}</option>)}
+            </select>
+            <div style={{marginTop:'5px',fontSize:'11px',color:'var(--muted)',textAlign:'center'}}>Local</div>
+          </div>
+          <div className="mvs">VS</div>
+          <div className="mteam">
+            <select value={awayT} onChange={e=>setAwayT(e.target.value)}>
+              {allTeams.map(t=><option key={t}>{t}</option>)}
+            </select>
+            <div style={{marginTop:'5px',fontSize:'11px',color:'var(--muted)',textAlign:'center'}}>Visitante</div>
+          </div>
+        </div>
+        <button className="pbtn" onClick={handleSim}>PREDECIR PARTIDO →</button>
+
+        {simResult && (
+          <div className="rbox">
+            <div className="rteam">
+              <div className="rname">{homeT}</div>
+              <div className={`rscore ${simResult.expH>simResult.expA?'won':simResult.expH<simResult.expA?'drew':''}`}>
+                {simResult.expH}
+              </div>
+              <div className="rprob">Prob. victoria: {pct(simResult.pHWin)}</div>
+              <div className="rprob" style={{color:'rgba(232,160,32,.6)',fontSize:'10px'}}>λ = {simResult.lH}</div>
+            </div>
+            <div className="rdraw">
+              <div className="rdraw-label">Empate</div>
+              <div className="rdraw-pct">{pct(simResult.pDraw)}</div>
+            </div>
+            <div className="rteam">
+              <div className="rname">{awayT}</div>
+              <div className={`rscore ${simResult.expA>simResult.expH?'won':simResult.expA<simResult.expH?'drew':''}`}>
+                {simResult.expA}
+              </div>
+              <div className="rprob">Prob. victoria: {pct(simResult.pAWin)}</div>
+              <div className="rprob" style={{color:'rgba(232,160,32,.6)',fontSize:'10px'}}>λ = {simResult.lA}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="tabs">
+        {[['champion','🏆 Campeón'],['final','🥈 Final'],['scorers','👟 Goleadores']].map(([id,label])=>(
+          <button key={id} className={`tab ${tab===id?'on':''}`} onClick={()=>setTab(id)}>{label}</button>
+        ))}
+      </div>
+
+      {tab==='champion' && (
+        <div className="card">
+          <div className="ctitle">Probabilidad de ganar el Mundial</div>
+          {champ.slice(0,20).map(t=>(
+            <ProbBar key={t.team} team={t.team} probability={t.probability}
+              flagCode={ts[t.team]?.flag||t.flag} maxP={maxChamp}/>
+          ))}
+        </div>
+      )}
+
+      {tab==='final' && (
+        <div className="card">
+          <div className="ctitle">Probabilidad de llegar a la final</div>
+          {sortedFinals.map(([team,prob])=>(
+            <ProbBar key={team} team={team} probability={prob}
+              flagCode={ts[team]?.flag||team.slice(0,2)} maxP={maxFinal} color="#0A3161"/>
+          ))}
+        </div>
+      )}
+
+      {tab==='scorers' && (
+        <div className="card">
+          <div className="ctitle">Top goleadores proyectados (Monte Carlo)</div>
+          {scorers.length > 0 ? (
+            <table className="dtable">
+              <thead><tr>
+                <th>#</th><th>Jugador</th><th>Selección</th>
+                <th>Goles/sim</th><th>P(Top Scorer)</th><th>P(MVP)</th>
+              </tr></thead>
+              <tbody>
+                {scorers.map((s,i)=>(
+                  <tr key={s.player}>
+                    <td><span className={`rbadge ${i===0?'r1':i===1?'r2':i===2?'r3':'rn'}`}>{i+1}</span></td>
+                    <td style={{fontWeight:600}}>{s.player}</td>
+                    <td style={{color:'var(--muted2)'}}>{s.team}</td>
+                    <td style={{fontFamily:'Barlow Condensed',fontWeight:800,fontSize:'16px',color:'var(--gold)'}}>{fmt(s.avg_goals)}</td>
+                    <td>{s.p_top_scorer != null ? pct(s.p_top_scorer*100) : '—'}</td>
+                    <td>{s.p_mvp != null ? pct(s.p_mvp*100) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div style={{textAlign:'center',padding:'2rem',color:'var(--muted)'}}>
+              Ejecuta las simulaciones con jugadores para ver goleadores
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ANÁLISIS ───────────────────────────────────────────────────────────────
+function PageAnalysis({data}) {
+  const fi  = data.feature_importance || {};
+  const ts  = data.team_stats || {};
+  const ds  = data.dataset_stats || {};
+  const [ftab, setFtab] = useState('home');
+
+  const feats = (fi[ftab] || []).slice(0,15);
+  const maxImp = feats.length ? feats[0].importance : 1;
+  const COLORS = ['#C8102E','#E05568','#0A3161','#1254A0','#5B9BD5','#009A44','#00C853','#E8A020','#7B90B4','#A8BEDC'];
+
+  // Top equipos por ataque (Dixon-Coles)
+  const topAtk = Object.entries(ts)
+    .filter(([,s])=>s.attack_rating)
+    .sort((a,b)=>(b[1].attack_rating||0)-(a[1].attack_rating||0))
+    .slice(0,12);
+
+  // Top plantillas por valor
+  const topVal = Object.entries(ts)
+    .filter(([,s])=>s.squad_value_M)
+    .sort((a,b)=>(b[1].squad_value_M||0)-(a[1].squad_value_M||0))
+    .slice(0,10)
+    .map(([team,s])=>({team:team.length>12?team.slice(0,11)+'…':team, value:+(s.squad_value_M||0).toFixed(0)}));
+
+  return (
+    <div>
+      <div className="ptitle">Análisis del Modelo</div>
+      <p className="psub">Feature importance, ratings Dixon-Coles y fuerza de plantillas</p>
+
+      <div className="g2" style={{marginBottom:'1rem'}}>
+        <div className="card">
+          <div className="ctitle">📐 Dataset</div>
+          <table className="dtable">
+            <tbody>
+              {[
+                ['Total partidos', fmtK(ds.total_matches)],
+                ['Partidos de Mundiales', fmtK(ds.wc_matches)],
+                ['Rango temporal', `${ds.date_range?.[0]?.slice(0,4)||'—'} – ${ds.date_range?.[1]?.slice(0,4)||'—'}`],
+                ['Entrenamiento desde', '2010-01-01'],
+                ['MAE goles local', '~0.93'],
+                ['MAE goles visitante', '~0.80'],
+                ['Modelo seleccionado', 'GBR (MAE < Poisson)'],
+              ].map(([k,v])=>(
+                <tr key={k}>
+                  <td style={{color:'var(--muted)'}}>{k}</td>
+                  <td style={{textAlign:'right',fontWeight:600,fontSize:'13px'}}>{v}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="card">
+          <div className="ctitle">⚡ Arquitectura del pipeline</div>
+          {[
+            {icon:'📊',title:'Dixon-Coles',desc:'Ratings ataque/defensa iterativo. Solo top-100 FIFA, decaimiento 3 años.'},
+            {icon:'🧠',title:'37 features',desc:'FIFA ranking, forma reciente, ratings DC, squad value/form (Transfermarkt).'},
+            {icon:'🎲',title:'Monte Carlo',desc:'N simulaciones completas del torneo con goles Poisson y penaltis reales.'},
+            {icon:'👟',title:'Jugadores',desc:'Goles distribuidos por valor de mercado (40%) + forma (60%) + posición.'},
+          ].map(i=>(
+            <div key={i.title} style={{display:'flex',gap:'10px',marginBottom:'10px'}}>
+              <span style={{fontSize:'18px',flexShrink:0}}>{i.icon}</span>
+              <div>
+                <div style={{fontWeight:600,fontSize:'13px',marginBottom:'2px'}}>{i.title}</div>
+                <div style={{fontSize:'11px',color:'var(--muted2)',lineHeight:1.5}}>{i.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Feature importance */}
+      {feats.length > 0 && (
+        <div className="card" style={{marginBottom:'1rem'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'.9rem'}}>
+            <div className="ctitle" style={{marginBottom:0}}>🤖 Feature importance</div>
+            <div style={{display:'flex',gap:'4px'}}>
+              {['home','away'].map(t=>(
+                <button key={t} onClick={()=>setFtab(t)} style={{
+                  background:ftab===t?'rgba(200,16,46,.2)':'none',
+                  border:`1px solid ${ftab===t?'rgba(200,16,46,.5)':'rgba(255,255,255,.1)'}`,
+                  borderRadius:'5px',color:ftab===t?'#fff':'var(--muted)',
+                  padding:'3px 10px',fontSize:'11px',cursor:'pointer',fontFamily:'Barlow,sans-serif'
+                }}>{t==='home'?'Local':'Visitante'}</button>
+              ))}
+            </div>
+          </div>
+          {feats.map((f,i)=>(
+            <div key={f.feature} className="frow">
+              <div className="fname">{f.feature.replace(/_/g,' ')}</div>
+              <div className="ftrack">
+                <div className="ffill" style={{width:`${(f.importance/maxImp)*100}%`,background:COLORS[i%COLORS.length]}}/>
+              </div>
+              <div className="fval">{(f.importance*100).toFixed(1)}%</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Dixon-Coles table */}
+      {topAtk.length > 0 && (
+        <div className="card" style={{marginBottom:'1rem'}}>
+          <div className="ctitle">🔥 Ratings Dixon-Coles — ataque vs defensa</div>
+          <table className="dtable">
+            <thead><tr>
+              <th>#</th><th>Selección</th><th>Ataque</th><th>Defensa</th>
+              <th>Ranking FIFA</th><th>Valor plantilla</th>
+            </tr></thead>
+            <tbody>
+              {topAtk.map(([team,s],i)=>(
+                <tr key={team}>
+                  <td><span className={`rbadge ${i===0?'r1':i===1?'r2':i===2?'r3':'rn'}`}>{i+1}</span></td>
+                  <td style={{fontWeight:600,display:'flex',alignItems:'center',gap:'6px'}}>
+                    <span>{flagEmoji(s.flag||team.slice(0,2))}</span>{team}
+                  </td>
+                  <td style={{fontFamily:'Barlow Condensed',fontWeight:800,fontSize:'16px',color:'#E8A020'}}>
+                    {fmt(s.attack_rating)}
+                  </td>
+                  <td style={{fontFamily:'Barlow Condensed',fontWeight:800,fontSize:'16px',color:'#5B9BD5'}}>
+                    {fmt(s.defense_rating)}
+                  </td>
+                  <td style={{color:'var(--muted)'}}>{s.fifa_rank?`#${s.fifa_rank}`:'—'}</td>
+                  <td style={{color:'var(--muted)'}}>{s.squad_value_M?`${fmt(s.squad_value_M,0)}M€`:'—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Squad value chart */}
+      {topVal.length > 0 && (
+        <div className="card">
+          <div className="ctitle">💶 Top plantillas por valor de mercado (Transfermarkt)</div>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={topVal} margin={{top:4,right:8,bottom:24,left:0}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.05)"/>
+              <XAxis dataKey="team" tick={{fill:'#7B90B4',fontSize:9}} angle={-30} textAnchor="end"/>
+              <YAxis tick={{fill:'#7B90B4',fontSize:10}} unit="M"/>
+              <Tooltip contentStyle={{background:'#161B22',border:'1px solid rgba(255,255,255,.1)',borderRadius:'6px',fontSize:'11px'}}
+                formatter={v=>[`${v}M€`,'Valor']} labelStyle={{color:'#fff'}}/>
+              <Bar dataKey="value" radius={[4,4,0,0]}>
+                {topVal.map((_,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── JUGADORES ──────────────────────────────────────────────────────────────
+function PagePlayers({data}) {
+  const players = data.top_players || [];
+  const mc      = data.monte_carlo || {};
+  const scorers = mc.top_scorers_mc || [];
+  const [tab, setTab] = useState('value');
+  const [filter, setFilter] = useState('');
+
+  const filtered = players.filter(p =>
+    !filter || p.team.toLowerCase().includes(filter.toLowerCase()) ||
+    p.name.toLowerCase().includes(filter.toLowerCase())
+  );
+
+  const POS_COLOR = {Attack:'rgba(200,16,46,.25)',Midfield:'rgba(10,49,97,.3)',
+    Defender:'rgba(0,154,68,.2)',Goalkeeper:'rgba(100,100,100,.2)'};
+
+  return (
+    <div>
+      <div className="ptitle">Jugadores</div>
+      <p className="psub">Datos de plantillas Transfermarkt · Forma reciente y valor de mercado</p>
+
+      <div className="tabs">
+        {[['value','💰 Por Valor'],['scorers','⚽ Goleadores MC']].map(([id,label])=>(
+          <button key={id} className={`tab ${tab===id?'on':''}`} onClick={()=>setTab(id)}>{label}</button>
+        ))}
+      </div>
+
+      {tab==='value' && (
+        <div className="card">
+          <div style={{display:'flex',gap:'8px',marginBottom:'1rem',alignItems:'center'}}>
+            <input
+              placeholder="Filtrar por equipo o jugador…"
+              value={filter} onChange={e=>setFilter(e.target.value)}
+              style={{background:'var(--bg3)',border:'1px solid var(--border2)',borderRadius:'6px',
+                color:'var(--text)',fontFamily:'Barlow,sans-serif',fontSize:'12px',
+                padding:'6px 10px',flex:1,outline:'none'}}
+            />
+            {filter && <button onClick={()=>setFilter('')} style={{
+              background:'none',border:'1px solid var(--border)',borderRadius:'5px',
+              color:'var(--muted)',padding:'5px 10px',cursor:'pointer',fontSize:'11px'
+            }}>✕</button>}
+          </div>
+          {players.length === 0 ? (
+            <div style={{textAlign:'center',padding:'2rem',color:'var(--muted)'}}>
+              Ejecuta el pipeline para ver datos de jugadores (appearances.csv necesario)
+            </div>
+          ) : (
+            <table className="dtable">
+              <thead><tr>
+                <th>#</th><th>Jugador</th><th>Selección</th><th>Posición</th>
+                <th>Valor</th><th>Forma</th><th>Goles WC</th>
+              </tr></thead>
+              <tbody>
+                {filtered.slice(0,40).map((p,i)=>(
+                  <tr key={p.name+p.team}>
+                    <td><span className={`rbadge ${i===0?'r1':i===1?'r2':i===2?'r3':'rn'}`}>{i+1}</span></td>
+                    <td style={{fontWeight:600}}>{p.name}</td>
+                    <td style={{color:'var(--muted2)'}}>{p.team}</td>
+                    <td>
+                      <span style={{
+                        background:POS_COLOR[p.position]||'rgba(100,100,100,.2)',
+                        borderRadius:'4px',padding:'1px 6px',fontSize:'10px'
+                      }}>{p.position||'—'}</span>
+                    </td>
+                    <td style={{fontFamily:'Barlow Condensed',fontWeight:700,color:'var(--gold)',fontSize:'14px'}}>
+                      {p.value_M!=null ? `${p.value_M}M€` : '—'}
+                    </td>
+                    <td style={{color:'var(--muted)'}}>{p.form_score!=null?fmt(p.form_score,2):'—'}</td>
+                    <td style={{color:'var(--muted)'}}>{p.wc_goals!=null&&p.wc_goals>0?fmt(p.wc_goals,1):'—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {tab==='scorers' && (
+        <div className="card">
+          <div className="ctitle">Top goleadores Monte Carlo</div>
+          {scorers.length === 0 ? (
+            <div style={{textAlign:'center',padding:'2rem',color:'var(--muted)'}}>
+              Ejecuta las simulaciones con jugadores para ver goleadores proyectados
+            </div>
+          ) : (
+            <table className="dtable">
+              <thead><tr>
+                <th>#</th><th>Jugador</th><th>Selección</th>
+                <th>Goles/sim</th><th>Asist/sim</th><th>P(Top Scorer)</th><th>P(MVP)</th>
+              </tr></thead>
+              <tbody>
+                {scorers.map((s,i)=>(
+                  <tr key={s.player}>
+                    <td><span className={`rbadge ${i===0?'r1':i===1?'r2':i===2?'r3':'rn'}`}>{i+1}</span></td>
+                    <td style={{fontWeight:600}}>{s.player}</td>
+                    <td style={{color:'var(--muted2)'}}>{s.team}</td>
+                    <td style={{fontFamily:'Barlow Condensed',fontWeight:800,fontSize:'16px',color:'var(--gold)'}}>{fmt(s.avg_goals)}</td>
+                    <td style={{color:'var(--muted)'}}>{fmt(s.avg_assists)}</td>
+                    <td>{s.p_top_scorer!=null?pct(s.p_top_scorer*100):'—'}</td>
+                    <td>{s.p_mvp!=null?pct(s.p_mvp*100):'—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ACERCA DE ──────────────────────────────────────────────────────────────
+function PageAbout() {
+  return (
+    <div>
+      <div className="ptitle">Acerca del modelo</div>
+      <p className="psub">Arquitectura técnica del predictor World Cup 2026</p>
+      <div className="aboutgrid" style={{marginBottom:'1rem'}}>
+        {[
+          {icon:'⚙️',title:'Modelo de goles',desc:'PoissonRegressor + GradientBoostingRegressor (scikit-learn). Se selecciona el mejor por MAE en TimeSeriesSplit. Predice lambda local y visitante por separado.'},
+          {icon:'📊',title:'Dixon-Coles',desc:'Ratings de ataque/defensa por ajuste iterativo alternado. Solo partidos contra top-100 FIFA. Decaimiento exponencial (vida media 3 años). Peso por calidad de rival (rank 1 vale 2× más que rank 50).'},
+          {icon:'🎲',title:'Monte Carlo',desc:'Simula el torneo completo N veces. Goles generados con distribución Poisson usando los lambda predichos. Resultado estable con ≥1000 simulaciones.'},
+          {icon:'⚽',title:'Penaltis reales',desc:'Tasas de shootouts.csv con decaimiento temporal (vida media 4 años) y suavizado bayesiano. Equipos sin historial: 50%.'},
+          {icon:'📋',title:'37 features',desc:'FIFA ranking, forma reciente, ratings Dixon-Coles, squad value/form (Transfermarkt), goles en Mundiales 2018/2022, ventaja de sede, ratio de valores.'},
+          {icon:'👟',title:'Jugadores',desc:'Goles distribuidos por valor de mercado (40%) y forma (60%). Multiplicadores por posición. Cap al 35% de goles del equipo por jugador.'},
+          {icon:'🗂️',title:'Bracket 2026',desc:'48 equipos, 12 grupos. 1/32: 8 partidos 1º×3º, 4 partidos 1º×2º, 4 partidos 2º×2º. Restricciones: nunca mismo grupo, nunca 1º×1º, nunca 3º×3º.'},
+          {icon:'📅',title:'Datos de entrenamiento',desc:'Partidos desde 2010-01-01. Pesos: Mundial×3.0, UEFA Euro/Copa América×2.5, Nations League×1.2, amistosos×0.8.'},
+        ].map(c=>(
+          <div className="acard" key={c.title}>
+            <div className="aicon">{c.icon}</div>
+            <div className="atitle">{c.title}</div>
+            <div className="adesc">{c.desc}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="card" style={{borderColor:'rgba(232,160,32,.2)'}}>
+        <div className="ctitle">🚀 Cómo actualizar los datos</div>
+        {[
+          {cmd:'python main.py --step prepare',           desc:'Limpia datos, Dixon-Coles, squad features (~90s)'},
+          {cmd:'python main.py --step train',             desc:'Entrena Poisson y GBR, guarda el mejor (~2min)'},
+          {cmd:'python main.py --step simulate --simulations 1000', desc:'Simulación Monte Carlo completa del torneo'},
+          {cmd:'python src/export_web.py',                desc:'Genera results/web_data.json para esta web'},
+          {cmd:'python scripts/deploy_web.py --push',     desc:'Copia a docs/ y publica en GitHub Pages'},
+        ].map(s=>(
+          <div key={s.cmd} className="codeline">
+            <code>{s.cmd}</code>
+            <span style={{fontSize:'12px',color:'var(--muted2)',paddingTop:'3px'}}>{s.desc}</span>
+          </div>
+        ))}
+        <div style={{marginTop:'1rem',padding:'.75rem',background:'rgba(232,160,32,.07)',borderRadius:'6px',border:'1px solid rgba(232,160,32,.2)'}}>
+          <div style={{fontSize:'12px',color:'var(--muted2)',lineHeight:1.7}}>
+            <strong style={{color:'var(--gold)'}}>GitHub Pages:</strong> Settings → Pages → Branch: main / Folder: /docs<br/>
+            <strong style={{color:'var(--gold)'}}>URL pública:</strong> https://TU_USUARIO.github.io/world-cup-2026-predictor/<br/>
+            <strong style={{color:'var(--gold)'}}>appearances.csv</strong> no incluido por tamaño (140MB) — descargar de Kaggle.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// APP ROOT
+// ════════════════════════════════════════════════════════════════════════════
+const PAGES = [
+  {id:'home',        label:'Inicio'},
+  {id:'groups',      label:'Grupos'},
+  {id:'bracket',     label:'Bracket'},
+  {id:'predictions', label:'Predicciones'},
+  {id:'analysis',    label:'Análisis'},
+  {id:'players',     label:'Jugadores'},
+  {id:'about',       label:'Acerca de'},
+];
+
+function App() {
+  const [page, setPage]   = useState('home');
+  const [data, setData]   = useState(null);
+
+  useEffect(()=>{
+    fetch('./results/web_data.json')
+      .then(r=>{ if(!r.ok) throw new Error(); return r.json(); })
+      .then(d=>setData(d))
+      .catch(()=>{ console.info('web_data.json no encontrado — usando datos de ejemplo'); setData(mockData()); });
+  },[]);
+
+  if(!data) return (
+    <div className="load">
+      <div className="spin"/>
+      <div style={{color:'var(--muted)',fontSize:'13px'}}>Cargando predicciones…</div>
+    </div>
+  );
+
+  return (
+    <>
+      <nav className="nav">
+        <div className="nav-logo">🏆 WC26 <em>PREDICTOR</em></div>
+        <div className="nav-links">
+          {PAGES.map(p=>(
+            <button key={p.id} className={`nav-btn ${page===p.id?'on':''}`} onClick={()=>setPage(p.id)}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+      <main className="page">
+        {page==='home'        && <PageHome        data={data}/>}
+        {page==='groups'      && <PageGroups      data={data}/>}
+        {page==='bracket'     && <PageBracket     data={data}/>}
+        {page==='predictions' && <PagePredictions data={data}/>}
+        {page==='analysis'    && <PageAnalysis    data={data}/>}
+        {page==='players'     && <PagePlayers     data={data}/>}
+        {page==='about'       && <PageAbout/>}
+      </main>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

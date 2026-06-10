@@ -31,22 +31,13 @@ def get_team_scorers(team: str, player_df: pd.DataFrame,
       - form_score (normalizado globalmente para evitar inflación por equipo débil)
       - Posición (delanteros tienen más peso)
 
-    FIX: normalización global evita que Lyle Foster o Santiago Giménez
-    salgan inflados por ser el mejor jugador de un equipo mediocre.
-    La normalización local (dentro del equipo) los equiparaba a Mbappé.
     """
     tm = player_df[player_df["country_of_citizenship"] == team].copy()
     if len(tm) == 0:
         return []
 
-    # Tomar los mejores jugadores por valor — solo con datos reales (>500k€)
-    # Evita que jugadores sin datos (añadidos con medianas) contaminen el pool
-    tm_real = tm[tm["market_value_in_eur"] > 500_000].copy()
-    if len(tm_real) >= 3:
-        tm = tm_real.nlargest(min(23, len(tm_real)), "market_value_in_eur")
-    else:
-        # Fallback: si hay muy pocos con datos reales, usar todos
-        tm = tm.nlargest(min(23, len(tm)), "market_value_in_eur")
+    # Tomar los mejores jugadores por valor
+    tm = tm.nlargest(min(23, len(tm)), "market_value_in_eur")
 
     # Peso base por posición para goles
     position_goal_weight = {
@@ -84,8 +75,8 @@ def get_team_scorers(team: str, player_df: pd.DataFrame,
     form_norm = (tm["form_rate"]           / max(global_max_form,  1)).clip(0, 1)
 
     # ── FIX 3: pesos 50/50 valor y forma ─────────────────────────────────────
-    tm["goal_score"]   = (val_norm * 0.5 + form_norm * 0.5) * tm["pos_goal_w"]
-    tm["assist_score"] = (val_norm * 0.5 + form_norm * 0.5) * tm["pos_assist_w"]
+    tm["goal_score"]   = (val_norm * 0.6 + form_norm * 0.4) * tm["pos_goal_w"]
+    tm["assist_score"] = (val_norm * 0.6 + form_norm * 0.4) * tm["pos_assist_w"]
 
     # ── FIX 4: cap DINÁMICO según fortaleza del equipo ───────────────────────
     # Un delantero de equipo débil no puede acaparar tantos goles como uno

@@ -135,9 +135,12 @@ def build_match_features_for_prediction(home, away, team_stats, results_df,
             if len(row) > 0:
                 raw = float(row[col].values[0])
                 # Mezcla con 1.0 (la media) para suavizar ratings extremos.
-                # alpha=0.4 significa: 40% rating real, 60% media global.
-                # Esto evita que defense=0.12 lleve los goles esperados a 0.
-                alpha = 0.4
+                # alpha=0.75: 75% rating real, 25% media global.
+                # Subido desde 0.4 para que los ratings Dixon-Coles diferencien
+                # mejor entre equipos fuertes y débiles en la simulación.
+                # Con alpha=0.4 España (2.24) quedaba en 1.50 y Haití (0.5) en 0.80
+                # — diferencia aplastada. Con 0.75: España=1.93, Haití=0.625.
+                alpha = 0.75
                 return alpha * raw + (1 - alpha) * 1.0
         return 1.0
 
@@ -335,107 +338,139 @@ def get_classified(group_results):
     return firsts, seconds, best_thirds
 
 
-def build_round_of_32(firsts, seconds, best_thirds):
+
+# ── Bracket oficial FIFA World Cup 2026 ──────────────────────────────────────
+#
+# Los 16 cruces de 1/32 están FIJOS y predeterminados. El camino a la final
+# está sellado en 4 ramas. Estructura de la imagen oficial:
+#
+# RAMA 1 → QF1 → SF1        RAMA 3 → QF3 → SF2
+#   M1:  1E  vs 3[ABCDF]      M9:  1C  vs 2F
+#   M2:  1I  vs 3[CDFGH]      M10: 2E  vs 2I
+#   M3:  2A  vs 2B             M11: 1A  vs 3[CEFHI]
+#   M4:  1F  vs 2C             M12: 1L  vs 3[EHIJK]
+#
+# RAMA 2 → QF2 → SF1        RAMA 4 → QF4 → SF2
+#   M5:  2K  vs 2L             M13: 1J  vs 2H
+#   M6:  1H  vs 2J             M14: 2D  vs 2G
+#   M7:  1D  vs 3[BEFIJ]      M15: 1B  vs 3[EFGIJ]
+#   M8:  1G  vs 3[AEHIJ]      M16: 1K  vs 3[DEIJL]
+#
+# SF1 = winner(QF1) vs winner(QF2)
+# SF2 = winner(QF3) vs winner(QF4)
+# FINAL = winner(SF1) vs winner(SF2)
+
+THIRD_SLOTS = {
+    "ABCDF": ["A","B","C","D","F"],
+    "CDFGH": ["C","D","F","G","H"],
+    "BEFIJ": ["B","E","F","I","J"],
+    "AEHIJ": ["A","E","H","I","J"],
+    "CEFHI": ["C","E","F","H","I"],
+    "EHIJK": ["E","H","I","J","K"],
+    "EFGIJ": ["E","F","G","I","J"],
+    "DEIJL": ["D","E","I","J","L"],
+}
+
+
+def assign_thirds_to_slots(best_thirds: dict) -> dict:
     """
-    Construye los 16 enfrentamientos de los 1/32 siguiendo las reglas:
-      - Nunca 1º vs 1º
-      - Nunca 3º vs 3º  -> los terceros siempre juegan contra primeros
-      - 2º vs 2º sí está permitido
-      - Nunca equipos del mismo grupo
-
-    Con 12 primeros, 12 segundos y 8 terceros (32 equipos, 16 partidos):
-      - 8 partidos de 1º vs 3º  (todos los terceros juegan contra primeros)
-      - 4 partidos de 1º vs 2º  (primeros restantes vs segundos)
-      - 4 partidos de 2º vs 2º  (segundos restantes entre sí)
-
-    Asignación concreta (grupos A-L, terceros de los 8 mejores grupos):
-      1ºI vs 3ºA,  1ºJ vs 3ºB,  1ºK vs 3ºC,  1ºL vs 3ºD   <- 1ºs sin tercero clasificado
-      1ºA vs 3ºE,  1ºB vs 3ºF,  1ºC vs 3ºG,  1ºD vs 3ºH   <- 1ºs vs tercero de otro grupo
-      1ºE vs 2ºH,  1ºF vs 2ºG,  1ºG vs 2ºF,  1ºH vs 2ºE   <- 1ºvs2º (grupos distintos)
-      2ºA vs 2ºB,  2ºC vs 2ºD,  2ºI vs 2ºJ,  2ºK vs 2ºL   <- 2ºvs2º
+    Asigna cada tercero clasificado a su slot del bracket oficial.
+    Cada slot acepta terceros de ciertos grupos (THIRD_SLOTS).
+    Se asigna el mejor tercero disponible a cada slot en orden de ranking.
     """
-    all_groups   = ["A","B","C","D","E","F","G","H","I","J","K","L"]
-    third_groups = sorted(best_thirds.keys())  # grupos cuyos terceros clasificaron
+    thirds_ranked = list(best_thirds.items())
+    slot_assignments = {}
+    assigned_groups  = set()
 
-    # Grupos cuyos terceros NO clasificaron (jugarán vs terceros de otros grupos)
-    no_third_groups = [g for g in all_groups if g not in third_groups]
-
-    # ── 8 partidos 1º vs 3º ──────────────────────────────────────────────────
-    # Los primeros de grupos sin tercero clasificado (I,J,K,L típicamente)
-    # juegan contra los 4 mejores terceros (evitando mismo grupo)
-    # Los primeros de A,B,C,D juegan contra los otros 4 terceros (E,F,G,H)
-    matchups_1v3 = []
-    thirds_sorted = sorted(best_thirds.keys())  # orden por rendimiento ya hecho en get_classified
-
-    # Asignar terceros a primeros de grupos sin tercero propio primero
-    assigned_thirds = set()
-    for first_group in no_third_groups:
-        for third_group in thirds_sorted:
-            if third_group not in assigned_thirds and third_group != first_group:
-                matchups_1v3.append((firsts[first_group], best_thirds[third_group]))
-                assigned_thirds.add(third_group)
+    for slot_name, valid_groups in THIRD_SLOTS.items():
+        for group, team in thirds_ranked:
+            if group not in assigned_groups and group in valid_groups:
+                slot_assignments[slot_name] = team
+                assigned_groups.add(group)
                 break
+        if slot_name not in slot_assignments:
+            # Fallback: cualquier tercero no asignado aún
+            for group, team in thirds_ranked:
+                if group not in assigned_groups:
+                    slot_assignments[slot_name] = team
+                    assigned_groups.add(group)
+                    break
 
-    # Asignar terceros restantes a primeros de los otros grupos (evitando mismo grupo)
-    remaining_thirds = [g for g in thirds_sorted if g not in assigned_thirds]
-    used_firsts = set(no_third_groups)
-    for third_group in remaining_thirds:
-        for first_group in all_groups:
-            if first_group not in used_firsts and first_group != third_group:
-                matchups_1v3.append((firsts[first_group], best_thirds[third_group]))
-                used_firsts.add(first_group)
-                assigned_thirds.add(third_group)
-                break
+    return slot_assignments
 
-    # ── 4 partidos 1º vs 2º ──────────────────────────────────────────────────
-    # Los primeros que NO jugaron vs terceros, vs segundos de grupos distintos
-    firsts_for_1v2  = [g for g in all_groups if g not in used_firsts]
-    seconds_for_1v2 = []
-    used_seconds    = set()
 
-    matchups_1v2 = []
-    for fg in firsts_for_1v2:
-        for sg in all_groups:
-            if sg not in used_seconds and sg != fg:
-                matchups_1v2.append((firsts[fg], seconds[sg]))
-                used_seconds.add(sg)
-                break
+def build_official_bracket(firsts: dict, seconds: dict, best_thirds: dict) -> list:
+    """
+    Construye los 16 enfrentamientos de 1/32 siguiendo el bracket oficial
+    FIFA World Cup 2026 con posiciones FIJAS.
 
-    # ── 4 partidos 2º vs 2º ──────────────────────────────────────────────────
-    remaining_seconds = [g for g in all_groups if g not in used_seconds]
-    matchups_2v2 = []
-    paired = set()
-    for i, g1 in enumerate(remaining_seconds):
-        if g1 in paired:
-            continue
-        for g2 in remaining_seconds[i+1:]:
-            if g2 not in paired and g2 != g1:
-                matchups_2v2.append((seconds[g1], seconds[g2]))
-                paired.add(g1)
-                paired.add(g2)
-                break
+    Los partidos están agrupados de 4 en 4 por rama:
+      [M1,M2,M3,M4]   = RAMA 1 (→ QF1 → SF1)
+      [M5,M6,M7,M8]   = RAMA 2 (→ QF2 → SF1)
+      [M9,M10,M11,M12]= RAMA 3 (→ QF3 → SF2)
+      [M13,M14,M15,M16]= RAMA 4 (→ QF4 → SF2)
 
-    matchups = matchups_1v3 + matchups_1v2 + matchups_2v2
+    El camino a la final está sellado: los equipos de SF1 (ramas 1+2)
+    solo pueden cruzarse con equipos de SF2 (ramas 3+4) en la FINAL.
+    """
+    t = assign_thirds_to_slots(best_thirds)
 
-    logger.info(f"  Bracket 1/32: {len(matchups)} partidos "
-                f"(1ºvs3º: {len(matchups_1v3)}, "
-                f"1ºvs2º: {len(matchups_1v2)}, "
-                f"2ºvs2º: {len(matchups_2v2)})")
+    def f(g):    return firsts.get(g,  f"1_{g}")
+    def s(g):    return seconds.get(g, f"2_{g}")
+    def th(slot):return t.get(slot,    f"3_{slot}")
+
+    # RAMA 1
+    M1  = (f("E"),  th("ABCDF"))
+    M2  = (f("I"),  th("CDFGH"))
+    M3  = (s("A"),  s("B"))
+    M4  = (f("F"),  s("C"))
+    # RAMA 2
+    M5  = (s("K"),  s("L"))
+    M6  = (f("H"),  s("J"))
+    M7  = (f("D"),  th("BEFIJ"))
+    M8  = (f("G"),  th("AEHIJ"))
+    # RAMA 3
+    M9  = (f("C"),  s("F"))
+    M10 = (s("E"),  s("I"))
+    M11 = (f("A"),  th("CEFHI"))
+    M12 = (f("L"),  th("EHIJK"))
+    # RAMA 4
+    M13 = (f("J"),  s("H"))
+    M14 = (s("D"),  s("G"))
+    M15 = (f("B"),  th("EFGIJ"))
+    M16 = (f("K"),  th("DEIJL"))
+
+    matchups = [M1,M2,M3,M4, M5,M6,M7,M8, M9,M10,M11,M12, M13,M14,M15,M16]
+
+    logger.info(f"  Bracket oficial 1/32: {len(matchups)} partidos en 4 ramas")
+    for i, (rama, ms) in enumerate([(1,[M1,M2,M3,M4]),(2,[M5,M6,M7,M8]),
+                                     (3,[M9,M10,M11,M12]),(4,[M13,M14,M15,M16])], 1):
+        logger.info(f"  Rama {i}: " + " | ".join(f"{h} vs {a}" for h,a in ms))
+
     return matchups
 
+def build_round_of_32(firsts, seconds, best_thirds):
+    """
+    DEPRECATED — mantenida por compatibilidad. Usar build_official_bracket().
+    Redirige al bracket oficial FIFA 2026.
+    """
+    return build_official_bracket(firsts, seconds, best_thirds)
 
 def get_qualified_teams(group_results):
-    """Mantiene compatibilidad con el resto del código — devuelve lista de 32."""
+    """
+    Devuelve lista de 32 equipos ordenados según el bracket oficial FIFA 2026.
+    El orden preserva la estructura de ramas: de 2 en 2 son los cruces de 1/32,
+    de 4 en 4 son las ramas que comparten cuarto de final.
+    """
     firsts, seconds, best_thirds = get_classified(group_results)
-    matchups = build_round_of_32(firsts, seconds, best_thirds)
+    matchups = build_official_bracket(firsts, seconds, best_thirds)
 
-    # Aplanar en lista ordenada para el bracket
     ordered = []
     for home, away in matchups:
         ordered.append(home)
         ordered.append(away)
 
-    logger.info(f"Equipos clasificados: {len(ordered)//2*2} en {len(matchups)} partidos")
+    logger.info(f"  32 equipos colocados en bracket oficial ({len(matchups)} partidos)")
     return ordered[:32]
 
 
@@ -443,45 +478,94 @@ def get_qualified_teams(group_results):
 
 def simulate_knockout_stage(qualified, model_home, model_away, feature_cols,
                              team_stats, results_df, penalty_rates, ratings=None, squad_df=None, player_df=None):
-    logger.info("\nSimulando fase eliminatoria...")
-    bracket      = {}
-    current_round = qualified.copy()
-    stage_names  = ["Round of 32", "Round of 16",
-                    "Quarter-finals", "Semi-finals", "Final"]
+    """
+    Simula la fase eliminatoria respetando el bracket oficial FIFA 2026.
 
-    for stage in stage_names:
-        if len(current_round) < 2:
-            break
-        logger.info(f"  -> {stage} ({len(current_round)} equipos)")
-        stage_matches = []
-        next_round    = []
+    El bracket tiene 4 ramas fijas. Los 32 equipos en 'qualified' están
+    ordenados según el bracket oficial (de 2 en 2 = cruce de 1/32,
+    de 4 en 4 = misma rama → mismo cuarto de final).
 
-        for i in range(0, len(current_round), 2):
-            if i + 1 >= len(current_round):
-                next_round.append(current_round[i])
-                continue
-            home, away = current_round[i], current_round[i + 1]
-            result = simulate_match(
-                home, away, model_home, model_away, feature_cols,
-                team_stats, results_df, penalty_rates,
-                is_neutral=True, allow_draw=False, ratings=ratings, squad_df=squad_df)
+    Estructura de ramas selladas:
+      Rama 1 (pos 0-7)  ┐
+                         ├→ SF1 → Final
+      Rama 2 (pos 8-15) ┘
+      Rama 3 (pos 16-23)┐
+                         ├→ SF2 → Final
+      Rama 4 (pos 24-31)┘
+    """
+    logger.info("\nSimulando fase eliminatoria (bracket oficial FIFA 2026)...")
+    bracket = {}
 
-            # Log si fue a penaltis
-            if result["went_to_penalties"]:
-                logger.info(
-                    f"     *** PENALTIS: {home} vs {away} "
-                    f"-> gana {result['penalty_winner']}"
-                )
+    def play_match(home, away):
+        result = simulate_match(
+            home, away, model_home, model_away, feature_cols,
+            team_stats, results_df, penalty_rates,
+            is_neutral=True, allow_draw=False, ratings=ratings, squad_df=squad_df)
+        if result["went_to_penalties"]:
+            logger.info(f"     *** PENALTIS: {home} vs {away} → {result['penalty_winner']}")
+        return result
 
-            stage_matches.append(result)
-            next_round.append(result["winner"])
+    # ── Round of 32 (16 partidos, 4 ramas de 4) ───────────────────────────────
+    logger.info(f"  -> Round of 32 (32 equipos)")
+    r32_matches = []
+    r32_winners = []
+    for i in range(0, 32, 2):
+        home, away = qualified[i], qualified[i+1]
+        res = play_match(home, away)
+        r32_matches.append(res)
+        r32_winners.append(res["winner"])
+    bracket["Round of 32"] = r32_matches
+    # r32_winners tiene 16 ganadores en orden: [w1,w2,w3,w4, w5,w6,w7,w8, w9,w10,w11,w12, w13,w14,w15,w16]
+    # Cada grupo de 4 es una rama → los pares dentro de la rama se cruzan en QF
 
-        bracket[stage]  = stage_matches
-        current_round   = next_round
+    # ── Round of 16 (8 partidos) ──────────────────────────────────────────────
+    # Dentro de cada rama: w1 vs w2 y w3 vs w4 → ganadores van al mismo QF
+    logger.info(f"  -> Round of 16 (16 equipos)")
+    r16_matches = []
+    r16_winners = []
+    for i in range(0, 16, 2):
+        home, away = r32_winners[i], r32_winners[i+1]
+        res = play_match(home, away)
+        r16_matches.append(res)
+        r16_winners.append(res["winner"])
+    bracket["Round of 16"] = r16_matches
+    # r16_winners: [qf1a, qf1b, qf2a, qf2b, qf3a, qf3b, qf4a, qf4b]
 
-    if current_round:
-        bracket["Champion"] = current_round[0]
-        logger.info(f"\n CAMPEON PREDICHO: {current_round[0]}")
+    # ── Quarter-finals (4 partidos) ───────────────────────────────────────────
+    # QF1 = r16_winners[0] vs r16_winners[1]  (rama 1)
+    # QF2 = r16_winners[2] vs r16_winners[3]  (rama 2)
+    # QF3 = r16_winners[4] vs r16_winners[5]  (rama 3)
+    # QF4 = r16_winners[6] vs r16_winners[7]  (rama 4)
+    logger.info(f"  -> Quarter-finals (8 equipos)")
+    qf_matches = []
+    qf_winners = []
+    for i in range(0, 8, 2):
+        home, away = r16_winners[i], r16_winners[i+1]
+        res = play_match(home, away)
+        qf_matches.append(res)
+        qf_winners.append(res["winner"])
+    bracket["Quarter-finals"] = qf_matches
+    # qf_winners: [sf1a, sf1b, sf2a, sf2b]
+
+    # ── Semi-finals (2 partidos) ──────────────────────────────────────────────
+    # SF1 = winner(QF1, rama1) vs winner(QF2, rama2)
+    # SF2 = winner(QF3, rama3) vs winner(QF4, rama4)
+    logger.info(f"  -> Semi-finals (4 equipos)")
+    sf_matches = []
+    sf_winners = []
+    for i in range(0, 4, 2):
+        home, away = qf_winners[i], qf_winners[i+1]
+        res = play_match(home, away)
+        sf_matches.append(res)
+        sf_winners.append(res["winner"])
+    bracket["Semi-finals"] = sf_matches
+
+    # ── Final ─────────────────────────────────────────────────────────────────
+    logger.info(f"  -> Final (2 equipos): {sf_winners[0]} vs {sf_winners[1]}")
+    final_res = play_match(sf_winners[0], sf_winners[1])
+    bracket["Final"]    = [final_res]
+    bracket["Champion"] = final_res["winner"]
+    logger.info(f"\n  🏆 CAMPEÓN PREDICHO: {final_res['winner']}")
 
     return bracket
 
@@ -609,14 +693,15 @@ def run_tournament_simulation(n_monte_carlo=1000, groups=None):
     else:
         squad_df = build_squad_features()
 
-    # Cargar dataset de jugadores para predicciones individuales
-    player_path = DATA_PROCESSED / "player_dataset.csv"
-    if player_path.exists():
-        player_df = pd.read_csv(player_path)
-        logger.info(f"Dataset de jugadores cargado: {len(player_df):,} jugadores")
+    # Cargar dataset de jugadores FILTRADO a convocados WC2026
+    from src.squad_filter import build_wc2026_player_dataset
+    wc_path = DATA_PROCESSED / "player_dataset_wc2026.csv"
+    if wc_path.exists():
+        player_df = pd.read_csv(wc_path)
+        logger.info(f"Dataset WC2026 cargado: {len(player_df):,} jugadores convocados")
     else:
-        from src.player_data import build_player_dataset
-        player_df = build_player_dataset()
+        logger.info("Generando dataset WC2026 por primera vez...")
+        player_df = build_wc2026_player_dataset()
 
     # Cargar tasas de penaltis reales
     penalty_rates = load_penalty_rates()

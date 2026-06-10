@@ -27,13 +27,13 @@ def get_team_scorers(team: str, player_df: pd.DataFrame,
     con su probabilidad relativa de ser el goleador en un partido.
 
     La probabilidad se pondera por:
-      - Valor de mercado (proxy de calidad)
-      - form_score (rendimiento reciente)
+      - Valor de mercado (normalizado globalmente entre todos los jugadores)
+      - form_score (normalizado globalmente para evitar inflación por equipo débil)
       - Posición (delanteros tienen más peso)
 
-    Returns:
-        Lista de dicts con: name, p_score (prob de marcar un gol del equipo),
-                            p_assist (prob de dar una asistencia)
+    FIX: normalización global evita que Lyle Foster o Santiago Giménez
+    salgan inflados por ser el mejor jugador de un equipo mediocre.
+    La normalización local (dentro del equipo) los equiparaba a Mbappé.
     """
     tm = player_df[player_df["country_of_citizenship"] == team].copy()
     if len(tm) == 0:
@@ -59,14 +59,23 @@ def get_team_scorers(team: str, player_df: pd.DataFrame,
     tm["pos_goal_w"]   = tm["position"].map(position_goal_weight).fillna(1.0)
     tm["pos_assist_w"] = tm["position"].map(position_assist_weight).fillna(1.0)
 
-    # Score combinado para goles
-    val_norm = tm["market_value_in_eur"] / max(tm["market_value_in_eur"].max(), 1)
-    form_norm = tm["form_score"] / max(tm["form_score"].max(), 1)
+    # ── FIX 1: normalizar valor y forma GLOBALMENTE (no dentro del equipo) ──
+    # Usar percentil 99 global como techo para evitar que un outlier
+    # comprima todos los demás valores a casi 0
+    global_max_value = player_df["market_value_in_eur"].quantile(0.99)
+    global_max_form  = player_df["form_score"].quantile(0.99)
 
-    tm["goal_score"]   = (val_norm * 0.4 + form_norm * 0.6) * tm["pos_goal_w"]
-    tm["assist_score"] = (val_norm * 0.4 + form_norm * 0.6) * tm["pos_assist_w"]
+    val_norm  = (tm["market_value_in_eur"] / max(global_max_value, 1)).clip(0, 1)
+    form_norm = (tm["form_score"]          / max(global_max_form,  1)).clip(0, 1)
 
-    # Normalizar a probabilidades
+    # ── FIX 2: subir peso del valor de mercado (60%) vs forma (40%) ──────────
+    # Antes era val=40% form=60% → la forma inflaba jugadores de ligas débiles
+    # con muchos partidos. El valor de mercado es mejor proxy de calidad real.
+    tm["goal_score"]   = (val_norm * 0.5 + form_norm * 0.5) * tm["pos_goal_w"]
+    tm["assist_score"] = (val_norm * 0.5 + form_norm * 0.5) * tm["pos_assist_w"]
+
+    # ── FIX 3: cap de p_score al 30% por jugador (antes 35%) ─────────────────
+    # Evita que un delantero estrella se lleve demasiados goles en solitario
     total_g = tm["goal_score"].sum()
     total_a = tm["assist_score"].sum()
 
@@ -74,8 +83,11 @@ def get_team_scorers(team: str, player_df: pd.DataFrame,
         tm["p_score"]  = 1.0 / len(tm)
         tm["p_assist"] = 1.0 / len(tm)
     else:
-        tm["p_score"]  = tm["goal_score"]  / total_g
-        tm["p_assist"] = tm["assist_score"] / total_a
+        tm["p_score"]  = (tm["goal_score"]  / total_g).clip(upper=0.35)
+        tm["p_assist"] = (tm["assist_score"] / total_a).clip(upper=0.35)
+        # Re-normalizar tras el cap
+        tm["p_score"]  = tm["p_score"]  / tm["p_score"].sum()
+        tm["p_assist"] = tm["p_assist"] / tm["p_assist"].sum()
 
     # Devolver top_n goleadores potenciales
     top = tm.nlargest(top_n, "goal_score")

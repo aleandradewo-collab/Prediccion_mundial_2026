@@ -10,9 +10,6 @@ Uso:
     python main.py --simulations 5000     # Cambiar número de simulaciones
     python main.py --simulations 1        # Una sola simulación (bracket único)
     python main.py --help                 # Mostrar ayuda
-    python src/export_web.py          # empaqueta lo que ya tienes
-    python scripts/deploy_web.py    # publica
-    Se ve la pagina en https://aleandradewo-collab.github.io/Prediccion_mundial_2026/
 """
 
 import argparse
@@ -69,6 +66,19 @@ def step_prepare():
     from src.data_preparation import run_preparation_pipeline
     match_features, team_stats, results = run_preparation_pipeline()
     logger.info(f"Dataset listo: {len(match_features):,} partidos con {match_features.shape[1]} columnas")
+
+    # Filtrar jugadores a convocados WC2026
+    logger.info("\nGenerando dataset de jugadores filtrado a convocados WC2026...")
+    try:
+        from src.squad_filter import build_wc2026_player_dataset
+        build_wc2026_player_dataset()
+        logger.info("  Dataset WC2026 generado correctamente")
+    except FileNotFoundError as e:
+        logger.warning(f"  {e}")
+        logger.warning("  Coloca wc2026_squads.csv en data/raw/ y vuelve a ejecutar prepare.")
+    except Exception as e:
+        logger.warning(f"  No se pudo generar dataset WC2026: {e}")
+
     return match_features, team_stats, results
 
 

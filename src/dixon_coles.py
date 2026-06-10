@@ -18,7 +18,7 @@ from src.utils import DATA_RAW, DATA_PROCESSED, IMPORTANT_TOURNAMENTS, logger
 
 
 # ── Parámetros ────────────────────────────────────────────────────────────────
-MIN_DATE          = "2018-01-01"   # Solo partidos recientes para los ratings
+MIN_DATE          = "2014-01-01"   # Solo partidos recientes para los ratings
 MAX_MATCHES       = 60             # Máximo de partidos por equipo (subido al excluir amistosos)
 DECAY_WEEKS       = 52 * 3         # Vida media 3 años: equilibrio entre reciente e histórico
 HOME_ADVANTAGE    = 1.15           # Factor de localía más conservador
@@ -40,7 +40,6 @@ EXCLUDE_TOURNAMENTS = {
 
 # Ranking FIFA máximo del rival para incluir el partido.
 # Ignoramos partidos contra equipos muy débiles (rank > umbral).
-# Evita que México infle su rating goleando a Belize o Trinidad.
 MAX_RIVAL_RANK = 100
 
 

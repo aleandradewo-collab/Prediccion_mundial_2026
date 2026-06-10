@@ -134,14 +134,10 @@ def build_match_features_for_prediction(home, away, team_stats, results_df,
             row = ratings[ratings["team"] == team]
             if len(row) > 0:
                 raw = float(row[col].values[0])
-                # Mezcla con 1.0 (la media) para suavizar ratings extremos.
                 # alpha=0.75: 75% rating real, 25% media global.
-                # Subido desde 0.4 para que los ratings Dixon-Coles diferencien
-                # mejor entre equipos fuertes y débiles en la simulación.
-                # Con alpha=0.4 España (2.24) quedaba en 1.50 y Haití (0.5) en 0.80
-                # — diferencia aplastada. Con 0.75: España=1.93, Haití=0.625.
                 alpha = 0.75
-                return alpha * raw + (1 - alpha) * 1.0
+                smoothed = alpha * raw + (1 - alpha) * 1.0
+                return smoothed
         return 1.0
 
     # Squad features (Transfermarkt)
@@ -273,17 +269,9 @@ def simulate_group_stage(groups, model_home, model_away, feature_cols,
                     standings[home]["pts"] += 1
                     standings[away]["pts"]  += 1
 
-                # Rastrear goles individuales si hay datos de jugadores
-                if player_df is not None:
-                    scorer_data = simulate_match_scorers(
-                        home, away, result["home_goals"], result["away_goals"],
-                        player_df, scorers_cache if "scorers_cache" in dir() else {})
-                    result["scorer_data"] = scorer_data
-                match_log.append({"group": group_name, **{k:v for k,v in result.items() if k != "scorer_data"}})
-                if "all_match_scorers" not in dir():
-                    pass
-                else:
-                    all_match_scorers.append(result.get("scorer_data", {}))
+                # Los goles individuales se calculan en monte_carlo_simulation
+                # para evitar conteo doble. Aquí solo guardamos el marcador.
+                match_log.append({"group": group_name, **{k:v for k,v in result.items()}})
 
         table = (pd.DataFrame(standings).T
                    .reset_index()
@@ -676,6 +664,12 @@ def run_tournament_simulation(n_monte_carlo=1000, groups=None):
     model_home, model_away, feature_cols = load_trained_models()
     results_df, rankings = load_raw_data()
     team_stats = build_team_stats(results_df, rankings)
+    # Indexar por equipo para que build_match_features_for_prediction
+    # pueda hacer "team in team_stats.index" correctamente.
+    # Sin esto, todos los equipos usan valores por defecto (rank=50, pts=1200)
+    # y el modelo no diferencia entre España y Sudáfrica.
+    if "team" in team_stats.columns:
+        team_stats = team_stats.set_index("team")
 
     # Cargar ratings Dixon-Coles (desde CSV si ya existen, si no recalcular)
     ratings_path = DATA_PROCESSED / "attack_defense_ratings.csv"

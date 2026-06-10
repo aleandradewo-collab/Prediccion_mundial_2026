@@ -39,8 +39,14 @@ def get_team_scorers(team: str, player_df: pd.DataFrame,
     if len(tm) == 0:
         return []
 
-    # Tomar los mejores jugadores por valor
-    tm = tm.nlargest(min(23, len(tm)), "market_value_in_eur")
+    # Tomar los mejores jugadores por valor — solo con datos reales (>500k€)
+    # Evita que jugadores sin datos (añadidos con medianas) contaminen el pool
+    tm_real = tm[tm["market_value_in_eur"] > 500_000].copy()
+    if len(tm_real) >= 3:
+        tm = tm_real.nlargest(min(23, len(tm_real)), "market_value_in_eur")
+    else:
+        # Fallback: si hay muy pocos con datos reales, usar todos
+        tm = tm.nlargest(min(23, len(tm)), "market_value_in_eur")
 
     # Peso base por posición para goles
     position_goal_weight = {

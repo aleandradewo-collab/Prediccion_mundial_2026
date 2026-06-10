@@ -235,36 +235,49 @@ def filter_to_wc2026_squad(player_df: pd.DataFrame) -> pd.DataFrame:
     return filtered
 
 
+# Valor mínimo estimado por posición para convocados con valor=0 en TM
+WC_MIN_VALUE_BY_POSITION = {
+    "Attack":     2_000_000,
+    "Midfield":   1_500_000,
+    "Defender":   1_000_000,
+    "Goalkeeper":   800_000,
+}
+WC_MIN_VALUE_DEFAULT = 1_000_000
+
+
 def add_missing_wc_players(player_df: pd.DataFrame,
                             filtered_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Para los convocados que NO están en Transfermarkt, añade filas con
-    valores medianos. Evita que equipos con pocos datos en TM (Jordania,
-    Uzbekistán, Iraq...) se queden sin plantilla en la simulación.
+    Dos funciones:
+    1. Añade convocados no encontrados en TM con valor mínimo por posición.
+    2. Corrige convocados encontrados en TM pero con market_value_in_eur=0.
+       Jugadores de ligas africanas/asiáticas poco cubiertas por TM reciben
+       un valor mínimo realista para que compitan internamente en su equipo.
+       Sin esto, Foster (10M€) acapara el 90% de los goles de Sudáfrica
+       porque sus compañeros tienen valor=0.
     """
     squads = load_wc2026_squad()
 
-    # Nombres ya encontrados (norm)
+    # ── Parte 1: añadir jugadores no encontrados en TM ───────────────────────
     found_norms = set(filtered_df['name'].apply(_norm).tolist())
-    # También considerar los nombres mapeados
     for fifa_name in squads['name']:
         tm_name = _build_lookup_name(str(fifa_name))
         if _norm(tm_name) in found_norms or _norm(str(fifa_name)) in found_norms:
             found_norms.add(_norm(str(fifa_name)))
 
-    median_value = player_df['market_value_in_eur'].median()
-    median_form  = player_df['form_score'].median() if 'form_score' in player_df else 0.0
-
     new_rows = []
     for _, row in squads.iterrows():
         if _norm(str(row['name'])) not in found_norms:
-            base = {col: 0 for col in filtered_df.columns}
+            pos     = str(row['position'])
+            min_val = WC_MIN_VALUE_BY_POSITION.get(pos, WC_MIN_VALUE_DEFAULT)
+            base    = {col: 0 for col in filtered_df.columns}
             base.update({
                 'name':                   row['name'],
                 'country_of_citizenship': row['team'],
-                'position':               row['position'],
-                'market_value_in_eur':    median_value * 0.25,
-                'form_score':             median_form  * 0.4,
+                'position':               pos,
+                'market_value_in_eur':    float(min_val),
+                'form_score':             0.0,
+                'total_apps':             0.0,
                 'weighted_goals':         0.0,
                 'weighted_assists':       0.0,
                 'wc_goals_weighted':      0.0,
@@ -276,10 +289,22 @@ def add_missing_wc_players(player_df: pd.DataFrame,
     if new_rows:
         extra    = pd.DataFrame(new_rows)
         combined = pd.concat([filtered_df, extra], ignore_index=True)
-        logger.info(f"  Añadidos {len(new_rows)} jugadores sin datos TM (valores medianos×0.25)")
-        return combined
+        logger.info(f"  Añadidos {len(new_rows)} jugadores sin datos TM (valor mínimo por posición)")
+    else:
+        combined = filtered_df.copy()
 
-    return filtered_df
+    # ── Parte 2: corregir value=0 en jugadores ya encontrados en TM ──────────
+    zero_mask = combined['market_value_in_eur'] == 0
+    n_zeros   = zero_mask.sum()
+    if n_zeros > 0:
+        def _min_val(pos):
+            return float(WC_MIN_VALUE_BY_POSITION.get(str(pos), WC_MIN_VALUE_DEFAULT))
+        combined.loc[zero_mask, 'market_value_in_eur'] = (
+            combined.loc[zero_mask, 'position'].apply(_min_val)
+        )
+        logger.info(f"  Corregidos {n_zeros} jugadores con valor=0€ → mínimo por posición")
+
+    return combined
 
 
 def build_wc2026_player_dataset(include_missing: bool = True) -> pd.DataFrame:

@@ -59,23 +59,37 @@ def get_team_scorers(team: str, player_df: pd.DataFrame,
     tm["pos_goal_w"]   = tm["position"].map(position_goal_weight).fillna(1.0)
     tm["pos_assist_w"] = tm["position"].map(position_assist_weight).fillna(1.0)
 
-    # ── FIX 1: normalizar valor y forma GLOBALMENTE (no dentro del equipo) ──
-    # Usar percentil 99 global como techo para evitar que un outlier
-    # comprima todos los demás valores a casi 0
+    # ── FIX 1: form_score como TASA por partido ──────────────────────────────
+    # form_score es suma acumulada — Giménez con 136 partidos supera a Yamal
+    # con 146. Dividir por total_apps da la tasa real de rendimiento.
+    tm["form_rate"] = tm["form_score"] / tm["total_apps"].replace(0, np.nan)
+    tm["form_rate"] = tm["form_rate"].fillna(0).clip(lower=0)
+
+    # ── FIX 2: normalizar GLOBALMENTE con percentil 99 ───────────────────────
+    # form_rate no existe como columna en el CSV — se calcula al vuelo
+    # sobre el dataset completo para obtener el percentil global correcto.
+    _global_form_rate = (
+        player_df["form_score"] / player_df["total_apps"].replace(0, np.nan)
+    ).fillna(0).clip(lower=0)
     global_max_value = player_df["market_value_in_eur"].quantile(0.99)
-    global_max_form  = player_df["form_score"].quantile(0.99)
+    global_max_form  = _global_form_rate.replace(0, np.nan).quantile(0.99)
 
     val_norm  = (tm["market_value_in_eur"] / max(global_max_value, 1)).clip(0, 1)
-    form_norm = (tm["form_score"]          / max(global_max_form,  1)).clip(0, 1)
+    form_norm = (tm["form_rate"]           / max(global_max_form,  1)).clip(0, 1)
 
-    # ── FIX 2: subir peso del valor de mercado (60%) vs forma (40%) ──────────
-    # Antes era val=40% form=60% → la forma inflaba jugadores de ligas débiles
-    # con muchos partidos. El valor de mercado es mejor proxy de calidad real.
+    # ── FIX 3: pesos 50/50 valor y forma ─────────────────────────────────────
     tm["goal_score"]   = (val_norm * 0.5 + form_norm * 0.5) * tm["pos_goal_w"]
     tm["assist_score"] = (val_norm * 0.5 + form_norm * 0.5) * tm["pos_assist_w"]
 
-    # ── FIX 3: cap de p_score al 30% por jugador (antes 35%) ─────────────────
-    # Evita que un delantero estrella se lleve demasiados goles en solitario
+    # ── FIX 4: cap DINÁMICO según fortaleza del equipo ───────────────────────
+    # Un delantero de equipo débil no puede acaparar tantos goles como uno
+    # de equipo fuerte. El cap varía entre 0.20 (Haití) y 0.35 (Francia).
+    # squad_strength = valor total del equipo / valor del equipo más caro.
+    squad_total    = player_df.groupby("country_of_citizenship")["market_value_in_eur"].sum()
+    max_squad_val  = squad_total.max()
+    team_strength  = squad_total.get(team, squad_total.median()) / max(max_squad_val, 1)
+    dynamic_cap    = float(np.clip(0.20 + team_strength * 0.15, 0.20, 0.35))
+
     total_g = tm["goal_score"].sum()
     total_a = tm["assist_score"].sum()
 
@@ -83,9 +97,8 @@ def get_team_scorers(team: str, player_df: pd.DataFrame,
         tm["p_score"]  = 1.0 / len(tm)
         tm["p_assist"] = 1.0 / len(tm)
     else:
-        tm["p_score"]  = (tm["goal_score"]  / total_g).clip(upper=0.35)
-        tm["p_assist"] = (tm["assist_score"] / total_a).clip(upper=0.35)
-        # Re-normalizar tras el cap
+        tm["p_score"]  = (tm["goal_score"]  / total_g).clip(upper=dynamic_cap)
+        tm["p_assist"] = (tm["assist_score"] / total_a).clip(upper=dynamic_cap + 0.05)
         tm["p_score"]  = tm["p_score"]  / tm["p_score"].sum()
         tm["p_assist"] = tm["p_assist"] / tm["p_assist"].sum()
 

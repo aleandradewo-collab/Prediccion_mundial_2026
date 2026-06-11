@@ -24,11 +24,11 @@ RECENT_MATCHES_WINDOW = 10       # Partidos recientes para calcular forma
 MIN_DATE_TRAINING = "2010-01-01" # Solo entrenar con partidos modernos
 IMPORTANT_TOURNAMENTS = {        # Peso extra para partidos de mayor importancia
     "FIFA World Cup": 3.0,
-    "Copa América": 2.4,
+    "Copa América": 2.3,
     "UEFA Euro": 2.6,
     "AFC Asian Cup": 1.8,
     "Gold Cup":           1.8,
-    "Africa Cup of Nations": 2.1,
+    "Africa Cup of Nations": 2.0,
     "FIFA World Cup qualification": 1.5,
     "Friendly": 1.0,
 }

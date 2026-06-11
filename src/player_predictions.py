@@ -21,7 +21,7 @@ from src.utils import DATA_PROCESSED, logger
 
 
 def get_team_scorers(team: str, player_df: pd.DataFrame,
-                     top_n: int = 3) -> list[dict]:
+                     top_n: int = 5) -> list[dict]:
     """
     Devuelve los top_n jugadores de un equipo que pueden marcar goles,
     con su probabilidad relativa de ser el goleador en un partido.
@@ -80,21 +80,23 @@ def get_team_scorers(team: str, player_df: pd.DataFrame,
     global_max_value = player_df["market_value_in_eur"].quantile(0.99)
     global_max_form  = _global_form_rate.replace(0, np.nan).quantile(0.99)
 
-    val_norm  = (tm["market_value_in_eur"] / max(global_max_value, 1)).clip(0, 1)
-    form_norm = (tm["form_rate"]           / max(global_max_form,  1)).clip(0, 1)
+    val_norm  = (tm["market_value_in_eur"] / max(global_max_value, 1)).clip(0, 10)
+    form_norm = (tm["form_rate"]           / max(global_max_form,  1)).clip(0, 10)
 
     # ── FIX 3: pesos 50/50 valor y forma ─────────────────────────────────────
     tm["goal_score"]   = (val_norm * 0.5 + form_norm * 0.5) * tm["pos_goal_w"]
     tm["assist_score"] = (val_norm * 0.5 + form_norm * 0.5) * tm["pos_assist_w"]
 
-    # ── FIX 4: cap DINÁMICO según fortaleza del equipo ───────────────────────
-    # Un delantero de equipo débil no puede acaparar tantos goles como uno
-    # de equipo fuerte. El cap varía entre 0.20 (Haití) y 0.35 (Francia).
-    # squad_strength = valor total del equipo / valor del equipo más caro.
-    squad_total    = player_df.groupby("country_of_citizenship")["market_value_in_eur"].sum()
-    max_squad_val  = squad_total.max()
-    team_strength  = squad_total.get(team, squad_total.median()) / max(max_squad_val, 1)
-    dynamic_cap    = float(np.clip(0.25 + team_strength * 0.20, 0.25, 0.45))
+    # ── FIX 4: sin cap fijo — la normalización global ya diferencia ─────────
+    # Con val_norm y form_norm globales, Mbappé (200M€) tiene val_norm=1.0
+    # y Ekitiké (90M€) tiene val_norm=0.45 — diferencia real preservada.
+    # La distribución de goles ya refleja la calidad global de cada jugador.
+    # Solo aplicamos un cap suave al 45% para evitar monopolios extremos.
+    squad_total   = player_df.groupby("country_of_citizenship")["market_value_in_eur"].sum()
+    max_squad_val = squad_total.max()
+    team_strength = squad_total.get(team, squad_total.median()) / max(max_squad_val, 1)
+    # Cap varía: 0.20 (equipo débil, 1 jugador domina) → 0.45 (equipo top)
+    team_cap = float(np.clip(0.20 + team_strength * 0.25, 0.20, 0.45))
 
     total_g = tm["goal_score"].sum()
     total_a = tm["assist_score"].sum()
@@ -103,8 +105,8 @@ def get_team_scorers(team: str, player_df: pd.DataFrame,
         tm["p_score"]  = 1.0 / len(tm)
         tm["p_assist"] = 1.0 / len(tm)
     else:
-        tm["p_score"]  = (tm["goal_score"]  / total_g).clip(upper=dynamic_cap)
-        tm["p_assist"] = (tm["assist_score"] / total_a).clip(upper=dynamic_cap + 0.05)
+        tm["p_score"]  = (tm["goal_score"]  / total_g).clip(upper=team_cap)
+        tm["p_assist"] = (tm["assist_score"] / total_a).clip(upper=team_cap + 0.05)
         tm["p_score"]  = tm["p_score"]  / tm["p_score"].sum()
         tm["p_assist"] = tm["p_assist"] / tm["p_assist"].sum()
 

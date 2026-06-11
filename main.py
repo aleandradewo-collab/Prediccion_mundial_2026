@@ -11,6 +11,7 @@ Uso:
     python main.py --simulations 1        # Una sola simulación (bracket único)
     python main.py --help                 # Mostrar ayuda
 
+    
     Borrar resultados anteriores: 
         # Borrar datos procesados
         Remove-Item data\processed\*.csv -Force
@@ -87,9 +88,19 @@ def step_prepare():
         logger.info("  Dataset WC2026 generado correctamente")
     except FileNotFoundError as e:
         logger.warning(f"  {e}")
-        logger.warning("  Coloca wc2026_squads.csv en data/raw/ y vuelve a ejecutar prepare.")
     except Exception as e:
         logger.warning(f"  No se pudo generar dataset WC2026: {e}")
+
+    # Actualizar form_score con datos de la temporada 2025-26
+    logger.info("\nActualizando form_score con datos 2025-26 (5 grandes ligas)...")
+    try:
+        from src.update_form_2526 import update_player_dataset
+        update_player_dataset()
+        logger.info("  form_score actualizado con datos 2025-26")
+    except FileNotFoundError:
+        logger.warning("  players_data_light-2025_2026.csv no encontrado en data/raw/ — omitiendo")
+    except Exception as e:
+        logger.warning(f"  No se pudo actualizar form_score 2025-26: {e}")
 
     return match_features, team_stats, results
 

@@ -139,6 +139,58 @@ def build_team_stats(results: pd.DataFrame, rankings: pd.DataFrame) -> pd.DataFr
             "total_recent_matches": len(tm),
         }
 
+    # ── Forma reciente ponderada de selección (últimos 20 partidos) ─────────
+    # Pondera cada partido por:
+    #   - Resultado: victoria=1, empate=0.4, derrota=0
+    #   - Importancia del torneo (Mundial > Eurocopa > Amistoso)
+    #   - Recencia exponencial (partido reciente vale más)
+    # España con racha invicta y Eurocopa 2024 tendrá score muy alto.
+    NATIONAL_FORM_WINDOW  = 25
+    NATIONAL_FORM_DECAY   = 52 * 3.0  # vida media 3 años — una derrota reciente
+                                       # no destruye el historial de un equipo top
+    NATIONAL_TOURNAMENT_W = {
+        "FIFA World Cup":                  3.0,
+        "UEFA Euro":                       2.7,
+        "Copa América":                    2.5,
+        "Africa Cup of Nations":           2.2,
+        "AFC Asian Cup":                   2.0,
+        "UEFA Nations League":             1.8,
+        "CONCACAF Nations League":         1.5,
+        "FIFA World Cup qualification":    1.5,
+        "UEFA Euro qualification":         1.3,
+        "Friendly":                        0.8,
+    }
+    reference_date = all_matches["date"].max()
+
+    for team in all_teams:
+        if team not in team_stats:
+            continue
+        tm = recent_matches[recent_matches["team"] == team].tail(NATIONAL_FORM_WINDOW).copy()
+        if len(tm) == 0:
+            team_stats[team]["national_form_score"] = 0.5
+            continue
+
+        scores = []
+        for _, r in tm.iterrows():
+            # Resultado
+            if r["goals_for"] > r["goals_against"]:
+                result_score = 1.0
+            elif r["goals_for"] == r["goals_against"]:
+                result_score = 0.4
+            else:
+                result_score = 0.0
+
+            # Peso temporal
+            weeks_ago = max((reference_date - r["date"]).days / 7, 0)
+            time_w = np.exp(-np.log(2) * weeks_ago / NATIONAL_FORM_DECAY)
+
+            # Peso por torneo
+            t_w = NATIONAL_TOURNAMENT_W.get(r.get("tournament", "Friendly"), 1.0)
+
+            scores.append(result_score * time_w * t_w)
+
+        team_stats[team]["national_form_score"] = float(np.sum(scores) / max(len(scores), 1))
+
     team_stats_df = pd.DataFrame(team_stats).T.reset_index()
     team_stats_df.columns = ["team"] + list(team_stats_df.columns[1:])
 
@@ -302,6 +354,10 @@ def build_match_features(
             "avg_conceded_away": a.get("avg_goals_conceded", 1.2),
             "win_rate_home": h.get("win_rate", 0.33),
             "win_rate_away": a.get("win_rate", 0.33),
+            # Forma reciente ponderada de selección nacional
+            # Captura rachas como la de España (invicta 2+ años, Eurocopa 2024)
+            "national_form_home": h.get("national_form_score", 0.5),
+            "national_form_away": a.get("national_form_score", 0.5),
 
             # Ventaja de sede
             "is_neutral": int(is_neutral),

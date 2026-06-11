@@ -39,6 +39,9 @@ FEATURE_COLS = [
     "top_scorer_val_home",  "top_scorer_val_away",
     "wc_goals_home",        "wc_goals_away",
     "value_ratio",
+    # Forma reciente ponderada de selección nacional
+    # Captura rachas como España invicta + Eurocopa 2024
+    "national_form_home",   "national_form_away",
 ]
 
 TARGET_HOME = "home_goals"

@@ -30,10 +30,6 @@ def get_team_scorers(team: str, player_df: pd.DataFrame,
       - Valor de mercado (normalizado globalmente entre todos los jugadores)
       - form_score (normalizado globalmente para evitar inflación por equipo débil)
       - Posición (delanteros tienen más peso)
-
-    FIX: normalización global evita que Lyle Foster o Santiago Giménez
-    salgan inflados por ser el mejor jugador de un equipo mediocre.
-    La normalización local (dentro del equipo) los equiparaba a Mbappé.
     """
     tm = player_df[player_df["country_of_citizenship"] == team].copy()
     if len(tm) == 0:

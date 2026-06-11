@@ -10,6 +10,18 @@ Uso:
     python main.py --simulations 5000     # Cambiar número de simulaciones
     python main.py --simulations 1        # Una sola simulación (bracket único)
     python main.py --help                 # Mostrar ayuda
+
+    Borrar resultados anteriores: 
+        # Borrar datos procesados
+        Remove-Item data\processed\*.csv -Force
+
+        # Borrar modelos entrenados
+        Remove-Item models\*.pkl -Force
+
+        # Borrar resultados anteriores
+        Remove-Item results\*.csv -Force
+        Remove-Item results\*.json -Force
+        Remove-Item results\*.txt -Force
 """
 
 import argparse

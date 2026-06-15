@@ -567,6 +567,10 @@ def monte_carlo_simulation(groups, model_home, model_away, feature_cols,
     logger.info(f"\nMonte Carlo: {n_simulations} simulaciones...")
     win_counts     = {}
     final_counts   = {}
+    sf_counts      = {}   # llegan a semifinales (pasan cuartos)
+    qf_counts      = {}   # llegan a cuartos (pasan octavos)
+    r16_counts     = {}   # llegan a octavos / R16 (pasan dieciseisavos)
+    r32_counts     = {}   # llegan a dieciseisavos / R32 (pasan fase de grupos)
     penalty_counts = {}
     all_player_sim_stats = []   # estadísticas de jugadores por simulación
     scorers_cache  = {}         # cache compartido para no recalcular
@@ -600,6 +604,23 @@ def monte_carlo_simulation(groups, model_home, model_away, feature_cols,
             for team in [bracket["Final"][0]["home"], bracket["Final"][0]["away"]]:
                 final_counts[team] = final_counts.get(team, 0) + 1
 
+        # Equipos que pasaron de la fase de grupos = los 32 clasificados
+        for team in qualified:
+            r32_counts[team] = r32_counts.get(team, 0) + 1
+
+        # Equipos que llegaron a cada ronda del bracket (= pasaron la anterior)
+        for stage_name, counts_dict in [
+            ("Round of 16",    r16_counts),
+            ("Quarter-finals", qf_counts),
+            ("Semi-finals",    sf_counts),
+        ]:
+            matches = bracket.get(stage_name)
+            if matches:
+                for m in matches:
+                    for team in (m.get("home"), m.get("away")):
+                        if team:
+                            counts_dict[team] = counts_dict.get(team, 0) + 1
+
         for stage, matches in bracket.items():
             if not isinstance(matches, list):
                 continue
@@ -632,17 +653,27 @@ def monte_carlo_simulation(groups, model_home, model_away, feature_cols,
     bar = "#" * 30
     print(f"\r  [{bar}] {n_simulations}/{n_simulations} completadas.")
 
-    # Tabla de equipos
-    all_teams = set(list(win_counts.keys()) + list(final_counts.keys()))
+    # Tabla de equipos — incluye los 48 equipos del Mundial, aunque alguno
+    # no haya alcanzado nunca una fase en las N simulaciones (prob=0)
+    all_wc_teams = sorted({t for grp in groups.values() for t in grp})
     rows = []
-    for t in sorted(all_teams):
+    for t in all_wc_teams:
         rows.append({
-            "team":             t,
-            "p_win_tournament": win_counts.get(t, 0)   / n_simulations,
-            "p_reach_final":    final_counts.get(t, 0) / n_simulations,
-            "penalty_wins":     penalty_counts.get(t, 0),
-            "sim_wins":         win_counts.get(t, 0),
-            "sim_finals":       final_counts.get(t, 0),
+            "team":              t,
+            # Probabilidad de PASAR cada fase (= alcanzar la siguiente)
+            "p_round_of_32":     r32_counts.get(t, 0)   / n_simulations,  # pasa fase de grupos
+            "p_round_of_16":     r16_counts.get(t, 0)   / n_simulations,  # pasa dieciseisavos
+            "p_quarterfinals":   qf_counts.get(t, 0)    / n_simulations,  # pasa octavos
+            "p_semifinals":      sf_counts.get(t, 0)    / n_simulations,  # pasa cuartos
+            "p_reach_final":     final_counts.get(t, 0) / n_simulations,  # pasa semifinales
+            "p_win_tournament":  win_counts.get(t, 0)   / n_simulations,  # gana la final
+            "penalty_wins":      penalty_counts.get(t, 0),
+            "sim_round_of_32":   r32_counts.get(t, 0),
+            "sim_round_of_16":   r16_counts.get(t, 0),
+            "sim_quarterfinals": qf_counts.get(t, 0),
+            "sim_semifinals":    sf_counts.get(t, 0),
+            "sim_finals":        final_counts.get(t, 0),
+            "sim_wins":          win_counts.get(t, 0),
         })
 
     teams_df = (pd.DataFrame(rows)
@@ -656,6 +687,42 @@ def monte_carlo_simulation(groups, model_home, model_away, feature_cols,
         player_mc_df = monte_carlo_player_stats(all_player_sim_stats, n_simulations)
 
     return teams_df, player_mc_df
+
+
+def print_stage_probabilities(teams_df: pd.DataFrame, top_n: int = 16):
+    """
+    Imprime, para cada selección, la probabilidad de PASAR cada fase del
+    torneo de forma progresiva:
+
+        Grupos -> Dieciseisavos -> Octavos -> Cuartos -> Semifinal -> Campeón
+
+    Cada columna representa la probabilidad de superar esa fase (= alcanzar
+    la siguiente). Por ejemplo, la columna "Octavos" es la probabilidad de
+    GANAR los octavos de final y meterse en cuartos.
+
+    Args:
+        teams_df: DataFrame devuelto por monte_carlo_simulation con las
+                  columnas p_round_of_32, p_round_of_16, p_quarterfinals,
+                  p_semifinals, p_reach_final, p_win_tournament.
+        top_n:    número de selecciones a mostrar (ordenadas por p_win_tournament)
+    """
+    cols = ["p_round_of_32", "p_round_of_16", "p_quarterfinals",
+            "p_semifinals", "p_reach_final", "p_win_tournament"]
+    headers = ["Grupos", "16avos", "Octavos", "Cuartos", "Semis", "Campeón"]
+
+    df = teams_df.sort_values("p_win_tournament", ascending=False).head(top_n)
+
+    print("\n" + "="*92)
+    print("  PROBABILIDAD DE AVANCE POR FASE (Monte Carlo)")
+    print("  Cada columna = probabilidad de SUPERAR esa fase y avanzar a la siguiente")
+    print("="*92)
+    header_line = f"  {'#':<4}{'Equipo':<22}" + "".join(f"{h:>11}" for h in headers)
+    print(header_line)
+    print("  " + "-"*88)
+    for i, (_, row) in enumerate(df.iterrows(), start=1):
+        vals = "".join(f"{row[c]*100:>10.1f}%" for c in cols)
+        print(f"  {i:<4}{row['team']:<22}{vals}")
+    print("="*92)
 
 
 # ── Pipeline principal ────────────────────────────────────────────────────────
@@ -785,6 +852,9 @@ def run_tournament_simulation(n_monte_carlo=1000, groups=None):
             n_simulations=n_monte_carlo)
         save_results(mc_teams_df, "monte_carlo_probabilities.csv")
         output["monte_carlo"] = mc_teams_df
+
+        # Probabilidad de avance fase a fase para cada selección
+        print_stage_probabilities(mc_teams_df, top_n=16)
 
         if mc_player_df is not None:
             save_results(mc_player_df, "monte_carlo_player_stats.csv")

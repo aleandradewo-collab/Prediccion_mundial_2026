@@ -1,0 +1,73 @@
+home,away,home_goals,away_goals,group,jornada,pred_home,pred_away,real_out,pred_out,correct,mae_home,mae_away,total_err
+Mexico,South Africa,2,0,A,1,2.629,0.693,home_win,home_win,True,0.629,0.693,1.322
+South Korea,Czech Republic,2,1,A,1,1.11,1.643,home_win,away_win,False,0.8899999999999999,0.643,1.533
+Mexico,South Korea,1,0,A,2,2.088,0.873,home_win,home_win,True,1.088,0.873,1.961
+Czech Republic,South Africa,1,1,A,2,2.068,0.881,draw,home_win,False,1.068,0.119,1.187
+Mexico,Czech Republic,3,0,A,3,1.716,1.062,home_win,home_win,True,1.284,1.062,2.346
+South Africa,South Korea,1,0,A,3,1.072,1.7,home_win,away_win,False,0.07200000000000006,1.7,1.772
+Canada,Bosnia and Herzegovina,1,1,B,1,1.472,1.238,draw,home_win,False,0.472,0.238,0.71
+Switzerland,Qatar,1,1,B,1,2.601,0.701,draw,home_win,False,1.601,0.29900000000000004,1.9
+Canada,Qatar,6,0,B,2,2.476,0.736,home_win,home_win,True,3.524,0.736,4.26
+Switzerland,Bosnia and Herzegovina,4,1,B,2,1.546,1.179,home_win,home_win,True,2.4539999999999997,0.17900000000000005,2.633
+Switzerland,Canada,2,1,B,3,1.418,1.285,home_win,draw,False,0.5820000000000001,0.2849999999999999,0.867
+Bosnia and Herzegovina,Qatar,3,1,B,3,2.271,0.803,home_win,home_win,True,0.7290000000000001,0.19699999999999995,0.926
+Brazil,Morocco,1,1,C,1,1.688,1.08,draw,home_win,False,0.688,0.08000000000000007,0.768
+Haiti,Scotland,0,1,C,1,0.623,2.925,away_win,away_win,True,0.623,1.9249999999999998,2.548
+Brazil,Haiti,3,0,C,2,3.434,0.531,home_win,home_win,True,0.43400000000000016,0.531,0.9650000000000002
+Scotland,Morocco,0,1,C,2,1.438,1.268,away_win,draw,False,1.438,0.268,1.706
+Brazil,Scotland,3,0,C,3,1.585,1.15,home_win,home_win,True,1.415,1.15,2.565
+Morocco,Haiti,4,2,C,3,2.746,0.664,home_win,home_win,True,1.254,1.3359999999999999,2.59
+United States,Paraguay,4,1,D,1,1.506,1.21,home_win,home_win,True,2.4939999999999998,0.20999999999999996,2.7039999999999997
+Australia,Turkey,2,0,D,1,1.342,1.359,home_win,draw,False,0.6579999999999999,1.359,2.017
+United States,Australia,2,0,D,2,1.429,1.275,home_win,draw,False,0.571,1.275,1.8459999999999999
+Turkey,Paraguay,0,1,D,2,1.431,1.274,away_win,draw,False,1.431,0.274,1.705
+United States,Turkey,2,3,D,3,1.42,1.283,away_win,draw,False,0.5800000000000001,1.717,2.297
+Australia,Paraguay,0,0,D,3,1.422,1.282,draw,draw,True,1.422,1.282,2.7039999999999997
+Germany,Curaçao,7,1,E,1,2.919,0.624,home_win,home_win,True,4.0809999999999995,0.376,4.457
+Ivory Coast,Ecuador,1,0,E,1,1.249,1.459,home_win,away_win,False,0.2490000000000001,1.459,1.7080000000000002
+Germany,Ivory Coast,2,1,E,2,1.578,1.155,home_win,home_win,True,0.42199999999999993,0.15500000000000003,0.577
+Ecuador,Curaçao,0,0,E,2,2.7,0.675,draw,home_win,False,2.7,0.675,3.375
+Ecuador,Germany,2,1,E,3,1.249,1.46,home_win,away_win,False,0.7509999999999999,0.45999999999999996,1.2109999999999999
+Ivory Coast,Curaçao,2,0,E,3,2.498,0.73,home_win,home_win,True,0.4980000000000002,0.73,1.2280000000000002
+Netherlands,Japan,2,2,F,1,1.43,1.275,draw,draw,True,0.5700000000000001,0.7250000000000001,1.2950000000000002
+Sweden,Tunisia,2,0,F,1,2.205,0.827,home_win,home_win,True,0.20500000000000007,0.827,1.032
+Netherlands,Sweden,5,1,F,2,1.614,1.129,home_win,home_win,True,3.386,0.129,3.515
+Japan,Tunisia,4,0,F,2,2.49,0.732,home_win,home_win,True,1.5099999999999998,0.732,2.242
+Netherlands,Tunisia,3,1,F,3,2.637,0.691,home_win,home_win,True,0.363,0.30900000000000005,0.672
+Japan,Sweden,1,1,F,3,1.524,1.195,draw,home_win,False,0.524,0.19500000000000006,0.7190000000000001
+Belgium,Egypt,1,1,G,1,2.603,0.7,draw,home_win,False,1.6030000000000002,0.30000000000000004,1.9030000000000002
+Iran,New Zealand,3,2,G,1,1.736,1.05,home_win,home_win,True,1.264,0.95,2.214
+Belgium,Iran,0,0,G,2,2.603,0.7,draw,home_win,False,2.603,0.7,3.303
+Egypt,New Zealand,3,1,G,2,1.736,1.05,home_win,home_win,True,1.264,0.050000000000000044,1.314
+Belgium,New Zealand,5,1,G,3,3.346,0.545,home_win,home_win,True,1.654,0.45499999999999996,2.109
+Egypt,Iran,1,1,G,3,1.35,1.35,draw,draw,True,0.3500000000000001,0.3500000000000001,0.7000000000000002
+Spain,Cape Verde,0,0,H,1,3.618,0.504,draw,home_win,False,3.618,0.504,4.122
+Uruguay,Saudi Arabia,1,1,H,1,3.011,0.605,draw,home_win,False,2.011,0.395,2.406
+Spain,Saudi Arabia,4,0,H,2,3.377,0.54,home_win,home_win,True,0.6230000000000002,0.54,1.1630000000000003
+Cape Verde,Uruguay,2,2,H,2,0.565,3.227,draw,away_win,False,1.435,1.2269999999999999,2.662
+Spain,Uruguay,1,0,H,3,1.514,1.204,home_win,home_win,True,0.514,1.204,1.718
+Cape Verde,Saudi Arabia,0,0,H,3,1.26,1.446,draw,draw,True,1.26,1.446,2.706
+France,Norway,4,1,I,1,1.623,1.123,home_win,home_win,True,2.377,0.123,2.5
+Senegal,Iraq,5,0,I,1,3.04,0.599,home_win,home_win,True,1.96,0.599,2.559
+France,Iraq,3,0,I,2,3.375,0.54,home_win,home_win,True,0.375,0.54,0.915
+Norway,Senegal,3,2,I,2,1.247,1.462,home_win,away_win,False,1.753,0.538,2.291
+France,Senegal,3,1,I,3,1.499,1.216,home_win,home_win,True,1.501,0.21599999999999997,1.7169999999999999
+Iraq,Norway,1,4,I,3,0.649,2.808,away_win,away_win,True,0.351,1.1920000000000002,1.5430000000000001
+Argentina,Algeria,3,0,J,1,2.816,0.647,home_win,home_win,True,0.18400000000000016,0.647,0.8310000000000002
+Austria,Jordan,3,1,J,1,3.076,0.592,home_win,home_win,True,0.07600000000000007,0.40800000000000003,0.4840000000000001
+Argentina,Austria,2,0,J,2,1.589,1.147,home_win,home_win,True,0.41100000000000003,1.147,1.558
+Algeria,Jordan,2,1,J,2,1.736,1.05,home_win,home_win,True,0.264,0.050000000000000044,0.31400000000000006
+Argentina,Jordan,3,1,J,3,3.62,0.503,home_win,home_win,True,0.6200000000000001,0.497,1.117
+Austria,Algeria,3,3,J,3,2.393,0.762,draw,home_win,False,0.6070000000000002,2.238,2.845
+Portugal,DR Congo,1,1,K,1,2.802,0.651,draw,home_win,False,1.802,0.349,2.151
+Colombia,Uzbekistan,3,1,K,1,3.047,0.598,home_win,home_win,True,0.04700000000000015,0.402,0.4490000000000002
+Portugal,Uzbekistan,5,0,K,2,3.175,0.574,home_win,home_win,True,1.8250000000000002,0.574,2.399
+Colombia,DR Congo,1,0,K,2,2.689,0.678,home_win,home_win,True,1.689,0.678,2.367
+Portugal,Colombia,0,0,K,3,1.407,1.296,draw,draw,True,1.407,1.296,2.7030000000000003
+DR Congo,Uzbekistan,2,0,K,3,1.53,1.191,home_win,home_win,True,0.47,1.191,1.661
+England,Panama,2,0,L,1,3.522,0.518,home_win,home_win,True,1.5219999999999998,0.518,2.04
+Croatia,Ghana,2,1,L,1,2.727,0.668,home_win,home_win,True,0.7269999999999999,0.33199999999999996,1.0589999999999997
+England,Ghana,0,0,L,2,2.9,0.628,draw,home_win,False,2.9,0.628,3.528
+Croatia,Panama,1,0,L,2,3.311,0.55,home_win,home_win,True,2.311,0.55,2.8609999999999998
+England,Croatia,4,1,L,3,1.436,1.269,home_win,draw,False,2.564,0.2689999999999999,2.833
+Ghana,Panama,1,0,L,3,1.639,1.112,home_win,home_win,True,0.639,1.112,1.7510000000000001

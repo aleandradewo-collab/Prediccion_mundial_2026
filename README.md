@@ -56,7 +56,7 @@ world-cup-2026-predictor/
 
 ### 1. Clonar el repositorio
 ```bash
-git clone https://github.com/tu-usuario/world-cup-2026-predictor.git
+git clone https://github.com/aleandradewo-collab/world-cup-2026-predictor.git
 cd world-cup-2026-predictor
 ```
 
